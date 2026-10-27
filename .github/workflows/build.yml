@@ -1,0 +1,33 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Tes unit Core
+        run: dotnet test tests/Lanting.Core.Tests -c Release
+
+      - name: Build Debug (sama seperti dari VS Code)
+        run: dotnet build src/Lanting.App -c Debug
+
+      - name: Publish Lanting.exe (win-x64, self-contained)
+        run: dotnet publish src/Lanting.App -c Release -r win-x64 -p:Platform=x64 --self-contained -o out/Lanting
+
+      - name: Upload hasil build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lanting-win-x64
+          path: out/Lanting
+          retention-days: 14
