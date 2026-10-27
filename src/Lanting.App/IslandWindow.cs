@@ -1,14 +1,22 @@
 using Lanting.App.Shell;
 using Lanting.Core.Island;
+using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
+using Windows.UI;
 using WinRT.Interop;
 using WinUIEx;
 
 namespace Lanting.App;
 
+/// <summary>
+/// Window island. Tampilannya dibangun lewat kode (bukan XAML) supaya ringan dan
+/// tidak bergantung pada pemuatan file XAML saat startup.
+/// </summary>
 public sealed partial class IslandWindow : Window
 {
     private const double TopMargin = 8;
@@ -22,6 +30,9 @@ public sealed partial class IslandWindow : Window
     private readonly PillAnimator _animator;
     private readonly DispatcherQueue _dispatcher;
     private readonly DispatcherQueueTimer _shrinkTimer;
+    private readonly Canvas _root;
+    private readonly Grid _pill;
+    private readonly StackPanel _expandedContent;
     private IslandShape _windowShape;
 
     public IslandWindow(IslandController controller, IslandStateMachine stateMachine)
@@ -29,7 +40,8 @@ public sealed partial class IslandWindow : Window
         _controller = controller;
         _stateMachine = stateMachine;
 
-        InitializeComponent();
+        (_root, _pill, _expandedContent) = BuildContent();
+        Content = _root;
 
         // Latar window benar-benar transparan; yang terlihat hanya pil hitam.
         SystemBackdrop = new TransparentTintBackdrop();
@@ -44,8 +56,8 @@ public sealed partial class IslandWindow : Window
         _shrinkTimer.Tick += (_, _) => ResizeWindow(IslandShape.For(_stateMachine.State));
 
         var initial = IslandShape.For(_stateMachine.State);
-        _animator = new PillAnimator(Pill, initial);
-        PillAnimator.SetOpacity(ExpandedContent, initial == IslandShape.Expanded ? 1f : 0f);
+        _animator = new PillAnimator(_pill, initial);
+        PillAnimator.SetOpacity(_expandedContent, initial == IslandShape.Expanded ? 1f : 0f);
         ResizeWindow(initial);
         _chrome.SetVisible(_stateMachine.State != IslandState.Hidden);
 
@@ -87,7 +99,7 @@ public sealed partial class IslandWindow : Window
 
         _chrome.SetVisible(true);
         _animator.AnimateTo(target);
-        _animator.Fade(ExpandedContent, state == IslandState.Expanded);
+        _animator.Fade(_expandedContent, state == IslandState.Expanded);
     }
 
     private void ResizeWindow(IslandShape shape)
@@ -96,7 +108,69 @@ public sealed partial class IslandWindow : Window
         _chrome.Resize(shape.Width, shape.Height, TopMargin);
 
         // Pil (selebar Max) diletakkan di tengah window supaya clip yang rata tengah tetap di tengah layar.
-        Canvas.SetLeft(Pill, (shape.Width - IslandShape.Max.Width) / 2);
+        Canvas.SetLeft(_pill, (shape.Width - IslandShape.Max.Width) / 2);
+    }
+
+    private (Canvas Root, Grid Pill, StackPanel ExpandedContent) BuildContent()
+    {
+        var dot = new Ellipse
+        {
+            Width = 10,
+            Height = 10,
+            Fill = new SolidColorBrush(Color.FromArgb(255, 0x2D, 0xD4, 0xBF)),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var title = new TextBlock
+        {
+            Text = "Lanting",
+            Foreground = new SolidColorBrush(Colors.White),
+            FontSize = 20,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        };
+        var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        header.Children.Add(dot);
+        header.Children.Add(title);
+
+        var expanded = new StackPanel { Margin = new Thickness(28, 24, 28, 24), Spacing = 6 };
+        expanded.Children.Add(header);
+        expanded.Children.Add(new TextBlock
+        {
+            Text = "Belum ada modul aktif. Lagu, lirik, dan baterai menyusul.",
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 0xA0, 0xA0, 0xA0)),
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        expanded.Children.Add(new TextBlock
+        {
+            Text = "Klik kanan untuk keluar.",
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 0x70, 0x70, 0x70)),
+            FontSize = 12,
+        });
+
+        // Pil selalu berukuran maksimum; bentuk yang terlihat diatur oleh clip yang dianimasikan.
+        var pill = new Grid
+        {
+            Width = IslandShape.Max.Width,
+            Height = IslandShape.Max.Height,
+            Background = new SolidColorBrush(Colors.Black),
+        };
+        pill.Children.Add(expanded);
+
+        var exit = new MenuFlyoutItem { Text = "Keluar dari Lanting" };
+        exit.Click += OnExitClick;
+        var menu = new MenuFlyout();
+        menu.Items.Add(exit);
+
+        var root = new Canvas
+        {
+            Background = new SolidColorBrush(Colors.Transparent),
+            ContextFlyout = menu,
+        };
+        root.Children.Add(pill);
+        root.PointerEntered += OnPointerEntered;
+        root.PointerExited += OnPointerExited;
+
+        return (root, pill, expanded);
     }
 
     private static IslandShape Union(IslandShape a, IslandShape b) =>
