@@ -40,6 +40,8 @@ internal sealed class SmtcMediaSource : IMediaSource, IMediaControls
 
     public event EventHandler<NowPlaying?>? Changed;
 
+    public event EventHandler<MediaTimeline?>? TimelineChanged;
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var manager = await SessionManager.RequestAsync().AsTask(cancellationToken).ConfigureAwait(false);
@@ -52,6 +54,7 @@ internal sealed class SmtcMediaSource : IMediaSource, IMediaControls
         manager.CurrentSessionChanged += OnCurrentSessionChanged;
         AttachCurrentSession();
         await RefreshAsync().ConfigureAwait(false);
+        await RefreshTimelineAsync().ConfigureAwait(false);
     }
 
     public Task StopAsync()
@@ -110,11 +113,14 @@ internal sealed class SmtcMediaSource : IMediaSource, IMediaControls
     {
         AttachCurrentSession();
         OnPropertiesChanged();
+        _ = RefreshTimelineAsync();
     }
 
     private void OnMediaPropertiesChanged(Session sender, MediaPropertiesChangedEventArgs args) => OnPropertiesChanged();
 
     private void OnPlaybackInfoChanged(Session sender, PlaybackInfoChangedEventArgs args) => _ = RefreshAsync();
+
+    private void OnTimelinePropertiesChanged(Session sender, TimelinePropertiesChangedEventArgs args) => _ = RefreshTimelineAsync();
 
     private void OnPropertiesChanged()
     {
@@ -176,6 +182,7 @@ internal sealed class SmtcMediaSource : IMediaSource, IMediaControls
             {
                 current.MediaPropertiesChanged += OnMediaPropertiesChanged;
                 current.PlaybackInfoChanged += OnPlaybackInfoChanged;
+                current.TimelinePropertiesChanged += OnTimelinePropertiesChanged;
             }
 
             StartupLog.Write($"Media: sesi aktif {current?.SourceAppUserModelId ?? "(tidak ada)"}");
@@ -191,6 +198,7 @@ internal sealed class SmtcMediaSource : IMediaSource, IMediaControls
 
         session.MediaPropertiesChanged -= OnMediaPropertiesChanged;
         session.PlaybackInfoChanged -= OnPlaybackInfoChanged;
+        session.TimelinePropertiesChanged -= OnTimelinePropertiesChanged;
     }
 
     private async Task RefreshAsync()
@@ -238,6 +246,45 @@ internal sealed class SmtcMediaSource : IMediaSource, IMediaControls
         {
             // Sesi yang baru saja ditutup sering melempar COMException; refresh berikutnya akan membereskan.
             StartupLog.Write($"Media: gagal membaca sesi: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Kirim posisi lagu. Lewat _refreshGate juga, supaya tidak pernah bersamaan dengan <see cref="Changed"/>.
+    /// Firefox/Zen tidak mengisi timeline (semuanya nol); modul yang memutuskan harus bagaimana.
+    /// </summary>
+    private async Task RefreshTimelineAsync()
+    {
+        try
+        {
+            await _refreshGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                Session? session;
+                lock (_gate)
+                {
+                    session = _stopped ? null : _session;
+                }
+
+                if (session is null)
+                {
+                    return;
+                }
+
+                var timeline = session.GetTimelineProperties();
+                TimelineChanged?.Invoke(this, new MediaTimeline(
+                    timeline.Position - timeline.StartTime,
+                    timeline.EndTime - timeline.StartTime,
+                    timeline.LastUpdatedTime));
+            }
+            finally
+            {
+                _refreshGate.Release();
+            }
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Write($"Media: gagal membaca posisi lagu: {ex.Message}");
         }
     }
 

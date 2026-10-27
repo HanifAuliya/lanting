@@ -28,6 +28,9 @@ internal sealed class MediaView : IIslandView
     private const string NextGlyph = "\uE893";
     private const string MusicGlyph = "\uEC4F";
 
+    // Pil kecil lebih lebar saat lagu punya lirik, supaya satu baris lirik muat.
+    private const double LyricsCompactWidth = 340;
+
     private static readonly Color DefaultAccent = Color.FromArgb(255, 0x2D, 0xD4, 0xBF);
     private static readonly Color Muted = Color.FromArgb(255, 0xA0, 0xA0, 0xA0);
     private static readonly Color Dim = Color.FromArgb(255, 0x70, 0x70, 0x70);
@@ -45,6 +48,8 @@ internal sealed class MediaView : IIslandView
     private readonly Button _playPause;
     private readonly FontIcon _playPauseIcon;
     private readonly Button _next;
+    private readonly SolidColorBrush _dimBrush = new(Dim);
+    private readonly SolidColorBrush _accentBrush = new(DefaultAccent);
     private NowPlaying? _song;
     private int _thumbnailVersion;
 
@@ -72,7 +77,7 @@ internal sealed class MediaView : IIslandView
         _title = Text(16, Colors.White);
         _title.FontWeight = FontWeights.SemiBold;
         _artist = Text(13, Muted);
-        _app = Text(11, Dim);
+        _app = Text(12, Dim);
         _app.Margin = new Thickness(0, 2, 0, 0);
 
         var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
@@ -111,6 +116,8 @@ internal sealed class MediaView : IIslandView
 
     public UIElement Expanded { get; }
 
+    public double CompactWidth => _song?.HasLyrics == true ? LyricsCompactWidth : IslandShape.Compact.Width;
+
     public bool CanShow(IslandContent content) => content.Payload is NowPlaying;
 
     public void Show(IslandContent content)
@@ -123,17 +130,36 @@ internal sealed class MediaView : IIslandView
         var previous = _song;
         _song = song;
 
-        if (previous?.Title != song.Title || previous?.Artist != song.Artist)
+        var newTrack = previous?.Title != song.Title || previous?.Artist != song.Artist;
+        if (newTrack)
         {
-            _compactTitle.Text = song.Title;
             _title.Text = song.Title;
             _artist.Text = song.Artist;
             _artist.Visibility = string.IsNullOrEmpty(song.Artist) ? Visibility.Collapsed : Visibility.Visible;
-            _app.Text = song.AppName;
 
             // Lagu baru: teks masuk dengan animasi. Play/pause saja tidak perlu.
+            Motion.Pop(_title, _artist);
+        }
+
+        if (song.HasLyrics != (previous?.HasLyrics ?? false))
+        {
+            StartupLog.Write(song.HasLyrics ? "Media: lirik tersedia." : "Media: tanpa lirik.");
+        }
+
+        // Baris lirik menggantikan judul di pil kecil dan nama pemutar di pil besar.
+        var compactText = song.Lyric ?? song.Title;
+        if (newTrack || compactText != _compactTitle.Text)
+        {
+            _compactTitle.Text = compactText;
             Motion.Pop(_compactTitle);
-            Motion.Pop(_title, _artist, _app);
+        }
+
+        var subline = song.Lyric ?? song.AppName;
+        if (newTrack || subline != _app.Text)
+        {
+            _app.Text = subline;
+            _app.Foreground = song.Lyric is null ? _dimBrush : _accentBrush;
+            Motion.Pop(_app);
         }
 
         _visualizer.SetPlaying(song.IsPlaying);
@@ -185,7 +211,9 @@ internal sealed class MediaView : IIslandView
 
         _compactArt.SetImage(image);
         _expandedArt.SetImage(image);
-        _visualizer.SetColor(accent is { } c ? Color.FromArgb(255, c.R, c.G, c.B) : DefaultAccent);
+        var color = accent is { } c ? Color.FromArgb(255, c.R, c.G, c.B) : DefaultAccent;
+        _visualizer.SetColor(color);
+        _accentBrush.Color = color;
     }
 
     // Gambar diperkecil jadi 24x24 piksel dulu; untuk memilih warna itu sudah cukup dan sangat murah.

@@ -1,4 +1,5 @@
 using Lanting.Core.Island;
+using Lanting.Core.Lyrics;
 using Lanting.Core.Media;
 
 namespace Lanting.Core.Tests;
@@ -11,7 +12,7 @@ public class MediaModuleTests
     [Fact]
     public async Task Playing_song_is_shown_as_ambient_content()
     {
-        var module = new MediaModule(_source);
+        var module = new MediaModule(_source, new NoLyrics(), TimeProvider.System);
         await module.StartAsync(_host, CancellationToken.None);
         var song = Song("Spotify.exe", "Lagu A");
 
@@ -22,13 +23,13 @@ public class MediaModuleTests
         Assert.Equal(MediaModule.NowPlayingKey, shown.Key);
         Assert.Equal(IslandPriority.Ambient, shown.Priority);
         Assert.Null(shown.Duration);
-        Assert.Same(song, shown.Payload);
+        Assert.Equal(song, shown.Payload);
     }
 
     [Fact]
     public async Task No_player_withdraws_the_song()
     {
-        var module = new MediaModule(_source);
+        var module = new MediaModule(_source, new NoLyrics(), TimeProvider.System);
         await module.StartAsync(_host, CancellationToken.None);
         _source.Raise(Song("Spotify.exe", "Lagu A"));
 
@@ -40,7 +41,7 @@ public class MediaModuleTests
     [Fact]
     public async Task Identical_update_is_not_shown_twice()
     {
-        var module = new MediaModule(_source);
+        var module = new MediaModule(_source, new NoLyrics(), TimeProvider.System);
         await module.StartAsync(_host, CancellationToken.None);
         var art = new byte[] { 1, 2, 3 };
 
@@ -54,7 +55,7 @@ public class MediaModuleTests
     [Fact]
     public async Task Empty_title_while_changing_tracks_keeps_the_old_song()
     {
-        var module = new MediaModule(_source);
+        var module = new MediaModule(_source, new NoLyrics(), TimeProvider.System);
         await module.StartAsync(_host, CancellationToken.None);
         _source.Raise(Song("Spotify.exe", "Lagu A"));
 
@@ -68,7 +69,7 @@ public class MediaModuleTests
     [Fact]
     public async Task Empty_title_from_another_app_withdraws()
     {
-        var module = new MediaModule(_source);
+        var module = new MediaModule(_source, new NoLyrics(), TimeProvider.System);
         await module.StartAsync(_host, CancellationToken.None);
         _source.Raise(Song("Spotify.exe", "Lagu A"));
 
@@ -80,7 +81,7 @@ public class MediaModuleTests
     [Fact]
     public async Task Nothing_to_withdraw_when_nothing_was_shown()
     {
-        var module = new MediaModule(_source);
+        var module = new MediaModule(_source, new NoLyrics(), TimeProvider.System);
         await module.StartAsync(_host, CancellationToken.None);
 
         _source.Raise(null);
@@ -93,7 +94,7 @@ public class MediaModuleTests
     [Fact]
     public async Task Stop_withdraws_and_ignores_later_updates()
     {
-        var module = new MediaModule(_source);
+        var module = new MediaModule(_source, new NoLyrics(), TimeProvider.System);
         await module.StartAsync(_host, CancellationToken.None);
         _source.Raise(Song("Spotify.exe", "Lagu A"));
 
@@ -109,7 +110,7 @@ public class MediaModuleTests
     public async Task Failed_start_does_not_leave_the_module_listening()
     {
         _source.FailOnStart = true;
-        var module = new MediaModule(_source);
+        var module = new MediaModule(_source, new NoLyrics(), TimeProvider.System);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => module.StartAsync(_host, CancellationToken.None));
         _source.Raise(Song("Spotify.exe", "Lagu A"));
@@ -132,18 +133,28 @@ public class MediaModuleTests
         Assert.Equal(expected, MediaApps.DisplayName(appId));
     }
 
-    private static NowPlaying Song(string appId, string title) =>
+    internal static NowPlaying Song(string appId, string title) =>
         new(appId, MediaApps.DisplayName(appId), title, "Artis", "Album", IsPlaying: true, CanPlayPause: true, CanNext: true, CanPrevious: true);
 
-    private sealed class FakeSource : IMediaSource
+    private sealed class NoLyrics : ILyricsProvider
+    {
+        public Task<SyncedLyrics?> FindAsync(TrackQuery query, CancellationToken cancellationToken) =>
+            Task.FromResult<SyncedLyrics?>(null);
+    }
+
+    internal sealed class FakeSource : IMediaSource
     {
         public event EventHandler<NowPlaying?>? Changed;
+
+        public event EventHandler<MediaTimeline?>? TimelineChanged;
 
         public bool FailOnStart { get; set; }
 
         public bool Stopped { get; private set; }
 
         public void Raise(NowPlaying? nowPlaying) => Changed?.Invoke(this, nowPlaying);
+
+        public void RaiseTimeline(MediaTimeline? timeline) => TimelineChanged?.Invoke(this, timeline);
 
         public Task StartAsync(CancellationToken cancellationToken) =>
             FailOnStart ? throw new InvalidOperationException("SMTC tidak ada") : Task.CompletedTask;
@@ -155,7 +166,7 @@ public class MediaModuleTests
         }
     }
 
-    private sealed class RecordingHost : IIslandHost
+    internal sealed class RecordingHost : IIslandHost
     {
         public List<IslandContent> Shown { get; } = [];
 

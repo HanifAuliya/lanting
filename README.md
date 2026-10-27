@@ -13,7 +13,7 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
 | 1. Fondasi | Struktur proyek, window pil, animasi dasar, CI | selesai |
 | 2. Media | Spotify / YouTube Music lewat SMTC, kontrol lagu | selesai |
 | 3. Animasi polish | Spring, crossfade, visualizer | selesai |
-| 4. Lirik | Lirik sinkron dari LRCLIB | belum |
+| 4. Lirik | Lirik sinkron dari LRCLIB | selesai |
 | 5. Baterai | Notifikasi baterai keyboard & mouse Bluetooth | belum |
 | 6. Rilis pertama | Settings, tray, auto-start, installer | belum |
 
@@ -60,4 +60,8 @@ Aturan arsitektur:
 - `IslandStateMachine` mengubah kejadian (konten, hover, fullscreen) menjadi state: Hidden, Compact, Expanded, Notification.
 - Fitur baru = modul `IIslandModule` di Core + tampilannya `IIslandView` di App, lalu daftarkan keduanya di `App.xaml.cs`. `IslandWindow` tidak perlu diubah.
 - Yang butuh API Windows (misalnya SMTC) ada di App di balik interface Core (`IMediaSource`), supaya logika modul tetap bisa dites.
-- Tidak ada polling: semua berbasis event.
+- Tidak ada polling: semua berbasis event. Lirik maju dengan satu timer per baris, bukan pengecekan berkala.
+
+## Privasi
+
+Untuk mencari lirik, judul dan artis lagu yang sedang diputar dikirim ke [LRCLIB](https://lrclib.net). Tidak ada data lain yang dikirim.

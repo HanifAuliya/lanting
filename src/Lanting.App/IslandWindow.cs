@@ -38,6 +38,7 @@ internal sealed partial class IslandWindow : Window
     private readonly Grid _expandedHost;
     private IIslandView? _activeView;
     private IslandShape _hitShape;
+    private double _compactWidth = IslandShape.Compact.Width;
 
     public IslandWindow(IslandController controller, IslandStateMachine stateMachine, IEnumerable<IIslandView> views)
     {
@@ -59,17 +60,16 @@ internal sealed partial class IslandWindow : Window
         _shrinkTimer = _dispatcher.CreateTimer();
         _shrinkTimer.IsRepeating = false;
         _shrinkTimer.Interval = ShrinkDelay;
-        _shrinkTimer.Tick += (_, _) => SetHitShape(IslandShape.For(_stateMachine.State));
+        _shrinkTimer.Tick += (_, _) => SetHitShape(ShapeFor(_stateMachine.State));
 
-        ShowContent(_controller.Current);
-
-        var initial = IslandShape.For(_stateMachine.State);
+        var initial = ShapeFor(_stateMachine.State);
         _animator = new PillAnimator(_pill, initial);
         PillAnimator.SetRevealed(_expandedHost, _stateMachine.State == IslandState.Expanded);
         PillAnimator.SetRevealed(_compactHost, _stateMachine.State != IslandState.Expanded);
         _chrome.Place(IslandShape.Max.Width, IslandShape.Max.Height, TopMargin);
         SetHitShape(initial);
         _chrome.SetVisible(_stateMachine.State != IslandState.Hidden);
+        ShowContent(_controller.Current);
 
         _controller.CurrentChanged += OnContentChanged;
         _stateMachine.StateChanged += OnStateChanged;
@@ -106,6 +106,17 @@ internal sealed partial class IslandWindow : Window
         {
             view.Show(content);
         }
+
+        // Misalnya lagu dengan lirik: pil kecil melebar supaya baris liriknya muat.
+        if (view.CompactWidth != _compactWidth)
+        {
+            _compactWidth = view.CompactWidth;
+            _compactHost.Width = _compactWidth;
+            if (_stateMachine.State != IslandState.Hidden)
+            {
+                Reshape(ShapeFor(_stateMachine.State));
+            }
+        }
     }
 
     private void ApplyState(IslandState state)
@@ -116,7 +127,20 @@ internal sealed partial class IslandWindow : Window
             return;
         }
 
-        var target = IslandShape.For(state);
+        Reshape(ShapeFor(state));
+        _chrome.SetVisible(true);
+        _animator.Reveal(_expandedHost, state == IslandState.Expanded);
+        _animator.Reveal(_compactHost, state != IslandState.Expanded);
+    }
+
+    private IslandShape ShapeFor(IslandState state) =>
+        state is IslandState.Expanded or IslandState.Notification
+            ? IslandShape.For(state)
+            : IslandShape.Compact with { Width = _compactWidth };
+
+    /// <summary>Animasikan pil ke bentuk baru dan atur area klik mengikutinya.</summary>
+    private void Reshape(IslandShape target)
+    {
         _shrinkTimer.Stop();
 
         // Biasanya tidak melakukan apa-apa; hanya bila resolusi atau skala layar berubah.
@@ -137,10 +161,7 @@ internal sealed partial class IslandWindow : Window
             _shrinkTimer.Start();
         }
 
-        _chrome.SetVisible(true);
         _animator.AnimateTo(target);
-        _animator.Reveal(_expandedHost, state == IslandState.Expanded);
-        _animator.Reveal(_compactHost, state != IslandState.Expanded);
     }
 
     private void SetHitShape(IslandShape shape)

@@ -11,11 +11,23 @@ public interface IMediaSource
     /// </summary>
     event EventHandler<NowPlaying?>? Changed;
 
+    /// <summary>
+    /// Dipicu saat pemutar melaporkan posisi lagu (ganti lagu, seek, kadang berkala). <c>null</c> atau durasi nol
+    /// berarti pemutar tidak memberi posisi (misalnya Firefox/Zen). Aturan thread sama dengan <see cref="Changed"/>.
+    /// </summary>
+    event EventHandler<MediaTimeline?>? TimelineChanged;
+
     /// <summary>Mulai mendengarkan; keadaan awal dikirim lewat <see cref="Changed"/>.</summary>
     Task StartAsync(CancellationToken cancellationToken);
 
     Task StopAsync();
 }
+
+/// <summary>Posisi lagu yang dilaporkan pemutar.</summary>
+/// <param name="Position">Posisi dari awal lagu.</param>
+/// <param name="Duration">Panjang lagu; nol bila tidak diketahui.</param>
+/// <param name="UpdatedAt">Kapan posisi itu berlaku. Saat diputar, posisi sekarang = Position + (sekarang - UpdatedAt).</param>
+public sealed record MediaTimeline(TimeSpan Position, TimeSpan Duration, DateTimeOffset UpdatedAt);
 
 /// <summary>Perintah ke pemutar yang sedang aktif. Dipanggil dari tombol di island.</summary>
 public interface IMediaControls

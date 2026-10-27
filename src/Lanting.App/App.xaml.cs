@@ -2,6 +2,7 @@ using Lanting.App.Media;
 using Lanting.App.Shell;
 using Lanting.App.Views;
 using Lanting.Core.Island;
+using Lanting.Core.Lyrics;
 using Lanting.Core.Media;
 using Lanting.Core.Modules;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,6 +52,8 @@ public partial class App : Application
             window.Activate();
             StartupLog.Write("Window aktif.");
 
+            _services.GetRequiredService<MediaModule>().LyricsFailed += (_, e) => StartupLog.Write($"Lirik gagal dicari: {e.Message}");
+
             var modules = _services.GetRequiredService<ModuleHost>();
             modules.ModuleFaulted += (_, e) => StartupLog.Write($"Modul '{e.ModuleId}' error: {e.Exception}");
             await modules.StartAsync(CancellationToken.None);
@@ -79,7 +82,18 @@ public partial class App : Application
         services.AddSingleton<SmtcMediaSource>();
         services.AddSingleton<IMediaSource>(sp => sp.GetRequiredService<SmtcMediaSource>());
         services.AddSingleton<IMediaControls>(sp => sp.GetRequiredService<SmtcMediaSource>());
-        services.AddSingleton<IIslandModule, MediaModule>();
+        services.AddSingleton<ILyricsProvider>(_ => new LrcLibClient(new HttpClient
+        {
+            BaseAddress = new Uri("https://lrclib.net/"),
+            Timeout = TimeSpan.FromSeconds(10),
+            DefaultRequestHeaders =
+            {
+                // LRCLIB meminta aplikasi memperkenalkan diri lewat User-Agent.
+                { "User-Agent", $"Lanting/{typeof(App).Assembly.GetName().Version?.ToString(3)} (https://github.com/HanifAuliya/lanting)" },
+            },
+        }));
+        services.AddSingleton<MediaModule>();
+        services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<MediaModule>());
         services.AddSingleton<IIslandView, MediaView>();
 
         // UI
