@@ -26,4 +26,11 @@ public sealed record NowPlaying(
     bool CanPlayPause,
     bool CanNext,
     bool CanPrevious,
-    byte[]? Thumbnail = null);
+    byte[]? Thumbnail = null)
+{
+    /// <summary>Baris lirik yang sedang dinyanyikan; <c>null</c> sebelum baris pertama atau bila tidak ada lirik.</summary>
+    public string? Lyric { get; init; }
+
+    /// <summary>Lagu ini punya lirik bertanda waktu dan posisinya diketahui, jadi <see cref="Lyric"/> akan terisi.</summary>
+    public bool HasLyrics { get; init; }
+}

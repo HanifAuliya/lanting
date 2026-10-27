@@ -13,6 +13,9 @@ internal interface IIslandView
     /// <summary>Isi pil kecil, berukuran <see cref="Shell.IslandShape.Compact"/>.</summary>
     UIElement Compact { get; }
 
+    /// <summary>Lebar pil kecil (DIP) yang dibutuhkan isi saat ini; biasanya <see cref="Shell.IslandShape.Compact"/>.</summary>
+    double CompactWidth { get; }
+
     /// <summary>Isi pil besar, berukuran <see cref="Shell.IslandShape.Expanded"/>.</summary>
     UIElement Expanded { get; }
 

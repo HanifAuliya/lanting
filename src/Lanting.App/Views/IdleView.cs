@@ -55,6 +55,8 @@ internal sealed class IdleView : IIslandView
 
     public UIElement Expanded { get; }
 
+    public double CompactWidth => Shell.IslandShape.Compact.Width;
+
     public bool CanShow(IslandContent content) => true;
 
     public void Show(IslandContent content)
