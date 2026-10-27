@@ -6,27 +6,29 @@ using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 using Windows.UI;
 
 namespace Lanting.App.Views;
 
 /// <summary>
-/// Tampilan lagu: pil kecil berisi gambar album, judul, dan status putar;
+/// Tampilan lagu: pil kecil berisi gambar album, judul, dan visualizer;
 /// pil besar berisi gambar, judul, artis, nama pemutar, dan tombol sebelumnya / putar / berikutnya.
 /// </summary>
 internal sealed class MediaView : IIslandView
 {
     // Glyph Segoe Fluent Icons (juga ada di Segoe MDL2 Assets untuk Windows 10).
-    private const string PlayGlyph = "";
-    private const string PauseGlyph = "";
-    private const string PreviousGlyph = "";
-    private const string NextGlyph = "";
-    private const string MusicGlyph = "";
+    private const string PlayGlyph = "\uE768";
+    private const string PauseGlyph = "\uE769";
+    private const string PreviousGlyph = "\uE892";
+    private const string NextGlyph = "\uE893";
+    private const string MusicGlyph = "\uEC4F";
 
-    private static readonly Color Accent = Color.FromArgb(255, 0x2D, 0xD4, 0xBF);
+    private static readonly Color DefaultAccent = Color.FromArgb(255, 0x2D, 0xD4, 0xBF);
     private static readonly Color Muted = Color.FromArgb(255, 0xA0, 0xA0, 0xA0);
     private static readonly Color Dim = Color.FromArgb(255, 0x70, 0x70, 0x70);
     private static readonly Color ArtBackground = Color.FromArgb(255, 0x26, 0x26, 0x26);
@@ -35,7 +37,7 @@ internal sealed class MediaView : IIslandView
     private readonly Art _compactArt;
     private readonly Art _expandedArt;
     private readonly TextBlock _compactTitle;
-    private readonly FontIcon _compactStatus;
+    private readonly Visualizer _visualizer;
     private readonly TextBlock _title;
     private readonly TextBlock _artist;
     private readonly TextBlock _app;
@@ -43,18 +45,18 @@ internal sealed class MediaView : IIslandView
     private readonly Button _playPause;
     private readonly FontIcon _playPauseIcon;
     private readonly Button _next;
-    private byte[]? _thumbnail;
+    private NowPlaying? _song;
     private int _thumbnailVersion;
 
     public MediaView(IMediaControls controls)
     {
         _controls = controls;
 
-        // Pil kecil (200x34): [gambar] judul ... [status]
+        // Pil kecil (200x34): [gambar] judul ... [visualizer]
         _compactArt = new Art(22, 6);
         _compactTitle = Text(12, Colors.White);
         _compactTitle.VerticalAlignment = VerticalAlignment.Center;
-        _compactStatus = new FontIcon { FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+        _visualizer = new Visualizer();
 
         var compact = new Grid { Margin = new Thickness(7, 6, 14, 6), ColumnSpacing = 8 };
         compact.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -62,7 +64,7 @@ internal sealed class MediaView : IIslandView
         compact.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Place(compact, _compactArt.Root, 0, 0);
         Place(compact, _compactTitle, 0, 1);
-        Place(compact, _compactStatus, 0, 2);
+        Place(compact, _visualizer.Root, 0, 2);
         Compact = compact;
 
         // Pil besar (400x160).
@@ -118,23 +120,32 @@ internal sealed class MediaView : IIslandView
             return;
         }
 
-        _compactTitle.Text = song.Title;
-        _compactStatus.Glyph = song.IsPlaying ? MusicGlyph : PauseGlyph;
-        _compactStatus.Foreground = new SolidColorBrush(song.IsPlaying ? Accent : Muted);
+        var previous = _song;
+        _song = song;
 
-        _title.Text = song.Title;
-        _artist.Text = song.Artist;
-        _artist.Visibility = string.IsNullOrEmpty(song.Artist) ? Visibility.Collapsed : Visibility.Visible;
-        _app.Text = song.AppName;
+        if (previous?.Title != song.Title || previous?.Artist != song.Artist)
+        {
+            _compactTitle.Text = song.Title;
+            _title.Text = song.Title;
+            _artist.Text = song.Artist;
+            _artist.Visibility = string.IsNullOrEmpty(song.Artist) ? Visibility.Collapsed : Visibility.Visible;
+            _app.Text = song.AppName;
+
+            // Lagu baru: teks masuk dengan animasi. Play/pause saja tidak perlu.
+            Motion.Pop(_compactTitle);
+            Motion.Pop(_title, _artist, _app);
+        }
+
+        _visualizer.SetPlaying(song.IsPlaying);
+        Motion.FadeTo(_visualizer.Root, song.IsPlaying ? 1f : 0.5f);
 
         _playPauseIcon.Glyph = song.IsPlaying ? PauseGlyph : PlayGlyph;
         _playPause.IsEnabled = song.CanPlayPause;
         _previous.IsEnabled = song.CanPrevious;
         _next.IsEnabled = song.CanNext;
 
-        if (!ReferenceEquals(song.Thumbnail, _thumbnail))
+        if (!ReferenceEquals(song.Thumbnail, previous?.Thumbnail) || previous is null)
         {
-            _thumbnail = song.Thumbnail;
             _ = LoadThumbnailAsync(song.Thumbnail);
         }
     }
@@ -143,17 +154,22 @@ internal sealed class MediaView : IIslandView
     {
         var version = ++_thumbnailVersion;
         ImageSource? image = null;
+        Rgb? accent = null;
         if (bytes is not null)
         {
             try
             {
-                // Batasi ukuran decode: gambar YouTube bisa 1280x720 dan memakan memori beberapa MB.
-                var bitmap = new BitmapImage { DecodePixelType = DecodePixelType.Logical, DecodePixelWidth = 160 };
                 using var stream = new InMemoryRandomAccessStream();
                 await stream.WriteAsync(bytes.AsBuffer());
+
+                // Batasi ukuran decode: gambar YouTube bisa 1280x720 dan memakan memori beberapa MB.
                 stream.Seek(0);
+                var bitmap = new BitmapImage { DecodePixelType = DecodePixelType.Logical, DecodePixelWidth = 160 };
                 await bitmap.SetSourceAsync(stream);
                 image = bitmap;
+
+                stream.Seek(0);
+                accent = await PickAccentAsync(stream);
             }
             catch (Exception ex)
             {
@@ -169,6 +185,21 @@ internal sealed class MediaView : IIslandView
 
         _compactArt.SetImage(image);
         _expandedArt.SetImage(image);
+        _visualizer.SetColor(accent is { } c ? Color.FromArgb(255, c.R, c.G, c.B) : DefaultAccent);
+    }
+
+    // Gambar diperkecil jadi 24x24 piksel dulu; untuk memilih warna itu sudah cukup dan sangat murah.
+    private static async Task<Rgb?> PickAccentAsync(IRandomAccessStream stream)
+    {
+        var decoder = await BitmapDecoder.CreateAsync(stream);
+        var transform = new BitmapTransform { ScaledWidth = 24, ScaledHeight = 24, InterpolationMode = BitmapInterpolationMode.Linear };
+        var data = await decoder.GetPixelDataAsync(
+            BitmapPixelFormat.Bgra8,
+            BitmapAlphaMode.Ignore,
+            transform,
+            ExifOrientationMode.IgnoreExifOrientation,
+            ColorManagementMode.DoNotColorManage);
+        return ArtworkColor.Pick(data.DetachPixelData());
     }
 
     private static TextBlock Text(double size, Color color) => new()
@@ -206,11 +237,15 @@ internal sealed class MediaView : IIslandView
         grid.Children.Add(element);
     }
 
-    /// <summary>Kotak gambar album bersudut bulat, dengan ikon not balok saat gambar belum ada.</summary>
+    /// <summary>
+    /// Kotak gambar album bersudut bulat. Gambar baru crossfade di atas yang lama (dua lapis yang bergantian),
+    /// dengan ikon not balok di bawahnya saat gambar tidak ada.
+    /// </summary>
     private sealed class Art
     {
-        private readonly Border _border;
+        private readonly Border[] _layers = new Border[2];
         private readonly FontIcon _placeholder;
+        private int _front;
 
         public Art(double size, double cornerRadius)
         {
@@ -220,25 +255,40 @@ internal sealed class MediaView : IIslandView
                 FontSize = Math.Round(size * 0.45),
                 Foreground = new SolidColorBrush(Muted),
             };
-            _border = new Border
+            var root = new Grid
             {
                 Width = size,
                 Height = size,
                 CornerRadius = new CornerRadius(cornerRadius),
                 Background = new SolidColorBrush(ArtBackground),
                 VerticalAlignment = VerticalAlignment.Center,
-                Child = _placeholder,
             };
+            root.Children.Add(_placeholder);
+            for (var i = 0; i < _layers.Length; i++)
+            {
+                _layers[i] = new Border { CornerRadius = new CornerRadius(cornerRadius) };
+                ElementCompositionPreview.GetElementVisual(_layers[i]).Opacity = 0f;
+                root.Children.Add(_layers[i]);
+            }
+
+            Root = root;
         }
 
-        public FrameworkElement Root => _border;
+        public FrameworkElement Root { get; }
 
         public void SetImage(ImageSource? image)
         {
-            _border.Background = image is null
-                ? new SolidColorBrush(ArtBackground)
-                : new ImageBrush { ImageSource = image, Stretch = Stretch.UniformToFill };
-            _placeholder.Visibility = image is null ? Visibility.Visible : Visibility.Collapsed;
+            var outgoing = _layers[_front];
+            _front ^= 1;
+            var incoming = _layers[_front];
+
+            incoming.Background = image is null ? null : new ImageBrush { ImageSource = image, Stretch = Stretch.UniformToFill };
+            Canvas.SetZIndex(incoming, 2);
+            Canvas.SetZIndex(outgoing, 1);
+            ElementCompositionPreview.GetElementVisual(incoming).Opacity = 0f;
+            Motion.FadeTo(incoming, 1f, 260);
+            Motion.FadeTo(outgoing, 0f, 260);
+            Motion.FadeTo(_placeholder, image is null ? 1f : 0f, 260);
         }
     }
 }

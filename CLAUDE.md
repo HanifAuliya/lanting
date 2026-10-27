@@ -11,10 +11,11 @@ Lightweight Dynamic Island for Windows 11. C# + WinUI 3 on .NET 10, Windows App 
 ## Layout
 
 - `src/Lanting.Core`: no UI. `IslandController` picks the content to show (priority, then most recent). `IslandStateMachine` handles Hidden, Compact, Expanded and Notification. `IIslandModule` and `ModuleHost` isolate module faults.
-  - `Media/`: `MediaModule` turns `IMediaSource` updates into the `media/now-playing` content (payload `NowPlaying`).
+  - `Media/`: `ArtworkColor` picks the accent color from album art. `MediaModule` turns `IMediaSource` updates into the `media/now-playing` content (payload `NowPlaying`).
 - `src/Lanting.App`: WinUI shell.
   - `IslandWindow.cs` builds its UI **in code, not XAML**. `IslandWindow.xaml` threw XamlParseException at startup, so keep new window UI in code.
   - `Views/`: one `IIslandView` per content type (`MediaView`), plus `IdleView` as the fallback. `IslandWindow` picks the first view whose `CanShow` matches.
+    `Motion` holds shared composition animations; `Visualizer` costs about 8% of one core while music plays (60 fps compositor), 0% when paused.
   - `Media/SmtcMediaSource.cs`: reads Windows SMTC (event based) and sends play/pause/next/previous.
   - `Shell/` holds the native window chrome, the composition spring animator (`PillAnimator`), `AppsFolder` (app name from an AppUserModelId) and `StartupLog`.
 - `tests/Lanting.Core.Tests`: xunit tests for Core, using FakeTimeProvider.
