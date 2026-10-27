@@ -42,6 +42,7 @@ public sealed partial class IslandWindow : Window
 
         (_root, _pill, _expandedContent) = BuildContent();
         Content = _root;
+        ExtendsContentIntoTitleBar = true;
 
         // Latar window benar-benar transparan; yang terlihat hanya pil hitam.
         SystemBackdrop = new TransparentTintBackdrop();

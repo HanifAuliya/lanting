@@ -34,6 +34,12 @@ internal sealed class IslandWindowChrome
             presenter.SetBorderAndTitleBar(hasBorder: false, hasTitleBar: false);
         }
 
+        // Tanpa ini Windows tetap menyisakan garis putih tipis (sisa bingkai judul) di tepi atas.
+        var style = (long)GetWindowLongPtr(_hwnd, GWL_STYLE);
+        style = (style & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU)) | WS_POPUP;
+        _ = SetWindowLongPtr(_hwnd, GWL_STYLE, (IntPtr)style);
+        _ = SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
         _appWindow.IsShownInSwitchers = false;
         _appWindow.Title = "Lanting";
 
