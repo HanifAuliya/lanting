@@ -56,6 +56,7 @@ internal sealed class IslandWindowChrome
         var y = display.Y + (int)Math.Round(topMargin * scale);
 
         _appWindow.MoveAndResize(new RectInt32(x, y, w, h));
+        StartupLog.Write($"Island {width}x{height} DIP -> {w}x{h} px di ({x},{y}), skala {scale:0.##}, layar {display.Width}x{display.Height}");
     }
 
     public void SetVisible(bool visible)
