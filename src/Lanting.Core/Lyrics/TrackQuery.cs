@@ -35,6 +35,15 @@ public sealed partial record TrackQuery(string Title, string Artist, string Albu
         return new TrackQuery(cleanTitle, cleanArtist, album.Trim(), duration);
     }
 
+    /// <summary>
+    /// Teks untuk pencarian bebas, dipakai bila pencarian judul + artis tidak menemukan apa-apa.
+    /// Video dari channel label ("Artis - Judul" oleh "HITS Records") masih menyimpan nama artis di judul;
+    /// di situ channelnya diabaikan.
+    /// </summary>
+    public string SearchText => Title.Contains(" - ", StringComparison.Ordinal)
+        ? string.Join(' ', Title.Split(" - ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        : $"{Artist} {Title}";
+
     private static string Squash(string text) => string.Concat(text.Where(char.IsLetterOrDigit));
 
     // "OliviaRodrigoVEVO", "Skinnyfabs - Topic", "Artis Official".

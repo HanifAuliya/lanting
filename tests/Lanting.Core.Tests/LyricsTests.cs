@@ -80,6 +80,14 @@ public class LyricsTests
         Assert.Equal(expectedArtist, query.Artist);
     }
 
+    [Theory]
+    [InlineData("ANDMESH  - ANUGERAH TERINDAH (OFFICIAL MUSIC VIDEO)", "HITS Records", "ANDMESH ANUGERAH TERINDAH")]
+    [InlineData("happier", "Olivia Rodrigo", "Olivia Rodrigo happier")]
+    public void Free_text_search_ignores_label_channels(string title, string artist, string expected)
+    {
+        Assert.Equal(expected, TrackQuery.Create(title, artist, string.Empty, null)!.SearchText);
+    }
+
     [Fact]
     public void Track_without_artist_or_title_cannot_be_searched()
     {

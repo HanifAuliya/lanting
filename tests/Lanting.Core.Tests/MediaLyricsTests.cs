@@ -24,6 +24,7 @@ public class MediaLyricsTests
         var module = await StartAsync();
         _source.Raise(Song("Spotify.exe", "Lagu A"));
         _source.RaiseTimeline(new MediaTimeline(TimeSpan.Zero, TimeSpan.FromMinutes(3), _time.GetUtcNow()));
+        WaitForSearch();
         _lyrics.Complete(Lagu);
 
         Assert.True(Last.HasLyrics);
@@ -46,6 +47,7 @@ public class MediaLyricsTests
         await StartAsync();
         _source.Raise(Song("Spotify.exe", "Lagu A"));
         _source.RaiseTimeline(new MediaTimeline(TimeSpan.Zero, TimeSpan.FromMinutes(3), _time.GetUtcNow()));
+        WaitForSearch();
         _lyrics.Complete(Lagu);
 
         _source.RaiseTimeline(new MediaTimeline(TimeSpan.FromSeconds(6), TimeSpan.FromMinutes(3), _time.GetUtcNow()));
@@ -59,6 +61,7 @@ public class MediaLyricsTests
         await StartAsync();
         _source.Raise(Song("Spotify.exe", "Lagu A"));
         _source.RaiseTimeline(new MediaTimeline(TimeSpan.Zero, TimeSpan.FromMinutes(3), _time.GetUtcNow()));
+        WaitForSearch();
         _lyrics.Complete(Lagu);
         _time.Advance(TimeSpan.FromSeconds(2));
 
@@ -76,11 +79,13 @@ public class MediaLyricsTests
     {
         await StartAsync();
         _source.Raise(Song("Zen", "Lagu A"));
+        WaitForSearch();
         _lyrics.Complete(null);
 
         // Zen tidak memberi posisi; Lagu B terlihat dimulai, jadi dihitung dari 0.
         _source.Raise(Song("Zen", "Lagu B"));
         _source.RaiseTimeline(new MediaTimeline(TimeSpan.Zero, TimeSpan.Zero, _time.GetUtcNow()));
+        WaitForSearch();
         _lyrics.Complete(Lagu);
         _time.Advance(TimeSpan.FromSeconds(5));
 
@@ -93,6 +98,7 @@ public class MediaLyricsTests
     {
         await StartAsync();
         _source.Raise(Song("Zen", "Lagu A"));
+        WaitForSearch();
         _lyrics.Complete(Lagu);
         _time.Advance(TimeSpan.FromSeconds(5));
 
@@ -105,6 +111,7 @@ public class MediaLyricsTests
     {
         await StartAsync();
         _source.Raise(Song("Spotify.exe", "Lagu A"));
+        WaitForSearch();
         var oldFetch = _lyrics.Pending!;
         _source.Raise(Song("Spotify.exe", "Lagu B"));
 
@@ -115,13 +122,29 @@ public class MediaLyricsTests
     }
 
     [Fact]
+    public async Task Quickly_skipped_songs_are_not_searched()
+    {
+        await StartAsync();
+
+        _source.Raise(Song("Spotify.exe", "Lagu A"));
+        _time.Advance(TimeSpan.FromMilliseconds(100));
+        _source.Raise(Song("Spotify.exe", "Lagu B"));
+        WaitForSearch();
+
+        Assert.Equal("Lagu B", _lyrics.LastQuery?.Title);
+        Assert.Equal(1, _lyrics.Searches);
+    }
+
+    [Fact]
     public async Task Lyrics_search_uses_the_cleaned_title()
     {
         await StartAsync();
 
         _source.Raise(Song("Zen", "Olivia Rodrigo - happier (Lyric Video)") with { Artist = "OliviaRodrigoVEVO" });
+        _source.RaiseTimeline(new MediaTimeline(TimeSpan.Zero, TimeSpan.FromSeconds(179), _time.GetUtcNow()));
+        WaitForSearch();
 
-        Assert.Equal(new TrackQuery("happier", "Olivia Rodrigo", "Album", null), _lyrics.LastQuery);
+        Assert.Equal(new TrackQuery("happier", "Olivia Rodrigo", "Album", TimeSpan.FromSeconds(179)), _lyrics.LastQuery);
     }
 
     private NowPlaying Last => (NowPlaying)_host.Shown[^1].Payload!;
@@ -139,14 +162,23 @@ public class MediaLyricsTests
 
         public TrackQuery? LastQuery { get; private set; }
 
+        public int Searches { get; private set; }
+
         public Task<SyncedLyrics?> FindAsync(TrackQuery query, CancellationToken cancellationToken)
         {
             LastQuery = query;
+            Searches++;
             Pending = new TaskCompletionSource<SyncedLyrics?>();
             return Pending.Task;
         }
 
         public void Complete(SyncedLyrics? lyrics) => Resolve(Pending!, lyrics);
+    }
+
+    // Pencarian lirik baru dimulai setelah jeda singkat.
+    private void WaitForSearch()
+    {
+        _time.Advance(MediaModule.LyricsSearchDelay);
     }
 
     // .NET hanya menjalankan lanjutan await langsung di dalam TrySetResult bila thread ini tidak punya

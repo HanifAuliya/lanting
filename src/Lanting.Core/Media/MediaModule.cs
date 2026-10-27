@@ -21,6 +21,12 @@ public sealed class MediaModule : IIslandModule
     /// <summary>Ditampilkan untuk baris kosong di LRC (bagian instrumental).</summary>
     public const string InstrumentalLyric = "♪";
 
+    /// <summary>
+    /// Jeda sebelum mencari lirik lagu baru: memberi waktu pemutar melaporkan durasi (untuk memilih versi lagu
+    /// yang cocok), dan lagu yang langsung di-skip tidak ikut dicari.
+    /// </summary>
+    public static readonly TimeSpan LyricsSearchDelay = TimeSpan.FromMilliseconds(400);
+
     private readonly IMediaSource _source;
     private readonly ILyricsProvider _lyricsProvider;
     private readonly TimeProvider _time;
@@ -32,6 +38,8 @@ public sealed class MediaModule : IIslandModule
     private SyncedLyrics? _lyrics;
     private bool _positionKnown;
     private ITimer? _lineTimer;
+    private ITimer? _searchTimer;
+    private TimeSpan? _duration;
     private CancellationTokenSource? _fetch;
 
     public MediaModule(IMediaSource source, ILyricsProvider lyricsProvider, TimeProvider time)
@@ -129,7 +137,7 @@ public sealed class MediaModule : IIslandModule
                 // Saat Lanting baru dinyalakan di tengah lagu, posisinya belum diketahui.
                 _positionKnown = previous is not null;
                 _clock.Reset(TimeSpan.Zero, nowPlaying.IsPlaying);
-                FetchLyrics(nowPlaying);
+                _searchTimer = _time.CreateTimer(_ => OnSearchTimer(), null, LyricsSearchDelay, Timeout.InfiniteTimeSpan);
             }
             else
             {
@@ -151,18 +159,33 @@ public sealed class MediaModule : IIslandModule
 
             _clock.Sync(timeline.Position, timeline.UpdatedAt);
             _positionKnown = true;
+            _duration = timeline.Duration;
             Publish();
         }
     }
 
-    private void FetchLyrics(NowPlaying song)
+    private void OnSearchTimer()
     {
-        var query = TrackQuery.Create(song.Title, song.Artist, song.Album, duration: null);
-        if (query is null)
+        lock (_gate)
         {
-            return;
-        }
+            _searchTimer?.Dispose();
+            _searchTimer = null;
+            if (_host is null || _song is null)
+            {
+                return;
+            }
 
+            var query = TrackQuery.Create(_song.Title, _song.Artist, _song.Album, _duration);
+            if (query is not null)
+            {
+                FetchLyrics(query);
+            }
+        }
+    }
+
+    // Dipanggil di dalam _gate.
+    private void FetchLyrics(TrackQuery query)
+    {
         var fetch = new CancellationTokenSource();
         _fetch = fetch;
         _ = FetchLyricsAsync(query, fetch);
@@ -203,6 +226,9 @@ public sealed class MediaModule : IIslandModule
     {
         _fetch?.Cancel();
         _fetch = null;
+        _searchTimer?.Dispose();
+        _searchTimer = null;
+        _duration = null;
         _lineTimer?.Dispose();
         _lineTimer = null;
         _lyrics = null;

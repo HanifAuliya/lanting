@@ -21,6 +21,8 @@ public sealed class LrcLibClient : ILyricsProvider
     // Durasi di LRCLIB dibulatkan ke detik dan versi lagu bisa beda sedikit; di luar selisih ini dianggap versi lain.
     private static readonly TimeSpan DurationTolerance = TimeSpan.FromSeconds(4);
 
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
+
     private readonly HttpClient _http;
     private readonly Lock _gate = new();
     private readonly Dictionary<TrackQuery, SyncedLyrics?> _cache = [];
@@ -42,9 +44,9 @@ public sealed class LrcLibClient : ILyricsProvider
             }
         }
 
-        var url = $"api/search?track_name={Uri.EscapeDataString(query.Title)}&artist_name={Uri.EscapeDataString(query.Artist)}";
-        var results = await _http.GetFromJsonAsync<List<LrcLibTrack>>(url, cancellationToken).ConfigureAwait(false) ?? [];
-        var lyrics = LrcParser.Parse(Pick(results, query)?.SyncedLyrics);
+        var match = Pick(await SearchAsync($"track_name={Uri.EscapeDataString(query.Title)}&artist_name={Uri.EscapeDataString(query.Artist)}", cancellationToken).ConfigureAwait(false), query)
+            ?? Pick(await SearchAsync($"q={Uri.EscapeDataString(query.SearchText)}", cancellationToken).ConfigureAwait(false), query);
+        var lyrics = LrcParser.Parse(match?.SyncedLyrics);
 
         lock (_gate)
         {
@@ -59,6 +61,22 @@ public sealed class LrcLibClient : ILyricsProvider
         }
 
         return lyrics;
+    }
+
+    private async Task<List<LrcLibTrack>> SearchAsync(string parameters, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<LrcLibTrack>>($"api/search?{parameters}", cancellationToken).ConfigureAwait(false) ?? [];
+            }
+            catch (HttpRequestException ex) when (attempt == 1 && (int?)ex.StatusCode >= 500)
+            {
+                // Server LRCLIB kadang sibuk sesaat (503); coba sekali lagi.
+                await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 
     /// <summary>
