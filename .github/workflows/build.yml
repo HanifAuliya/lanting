@@ -1,0 +1,82 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Tes unit Core
+        run: dotnet test tests/Lanting.Core.Tests -c Release
+
+      - name: Build Debug (sama seperti dari VS Code)
+        run: dotnet build src/Lanting.App -c Debug
+
+      - name: Publish Lanting.exe (win-x64, self-contained)
+        run: dotnet publish src/Lanting.App -c Release -r win-x64 -p:Platform=x64 --self-contained -o out/Lanting
+
+      - name: Smoke test (jalankan Lanting.exe sungguhan)
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:LOCALAPPDATA 'Lanting\lanting.log'
+          Remove-Item $log -ErrorAction SilentlyContinue
+          $env:LANTING_NO_DIALOG = '1'
+          $env:LANTING_XAML_DIAG = '1'
+          $p = Start-Process -FilePath out/Lanting/Lanting.exe -PassThru
+          Start-Sleep -Seconds 12
+
+          # Screenshot bagian atas layar supaya tampilan island bisa dicek.
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $w = [Math]::Min(640, $screen.Width); $h = 200
+          $x = [int](($screen.Width - $w) / 2)
+          $bmp = New-Object System.Drawing.Bitmap $w, $h
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($x, 0, 0, 0, $bmp.Size)
+          New-Item -ItemType Directory -Force smoke | Out-Null
+          $bmp.Save("smoke/top-of-screen.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          Write-Host "SCREEN $($screen.Width)x$($screen.Height)"
+          Write-Host "SCREENSHOT_BASE64_BEGIN"
+          Write-Host ([Convert]::ToBase64String([IO.File]::ReadAllBytes("smoke/top-of-screen.png")))
+          Write-Host "SCREENSHOT_BASE64_END"
+
+          Write-Host "---- lanting.log ----"
+          if (Test-Path $log) { Get-Content $log; Copy-Item $log smoke/ } else { Write-Host "(log tidak ada)" }
+
+          if ((Test-Path $log) -and (Select-String -Path $log -Pattern 'FATAL' -Quiet)) {
+            Write-Host "Ada error FATAL di log."
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+            exit 1
+          }
+          if ($p.HasExited) {
+            Write-Host "Lanting.exe berhenti sendiri, exit code $($p.ExitCode)"
+            exit 1
+          }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "Lanting.exe masih berjalan setelah 12 detik."
+
+      - name: Upload hasil smoke test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test
+          path: smoke
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload hasil build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lanting-win-x64
+          path: out/Lanting
+          retention-days: 14
