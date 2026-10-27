@@ -13,6 +13,8 @@ internal sealed class IslandWindowChrome
     private readonly AppWindow _appWindow;
     private readonly IntPtr _hwnd;
     private bool _visible = true;
+    private RectInt32 _placed;
+    private RECT _hitArea;
 
     public IslandWindowChrome(AppWindow appWindow, IntPtr hwnd)
     {
@@ -50,8 +52,12 @@ internal sealed class IslandWindowChrome
         _ = DwmSetWindowAttribute(_hwnd, DWMWA_BORDER_COLOR, ref border, sizeof(int));
     }
 
-    /// <summary>Ubah ukuran window (dalam DIP) dan tetap rata tengah di atas layar.</summary>
-    public void Resize(double width, double height, double topMargin)
+    /// <summary>
+    /// Letakkan window (ukuran dalam DIP) rata tengah di atas layar. Tidak melakukan apa-apa bila posisinya sudah benar,
+    /// jadi aman dipanggil setiap kali state berubah (sekalian menyesuaikan bila resolusi atau skala layar berganti).
+    /// </summary>
+    /// <returns><c>true</c> bila window benar-benar dipindah.</returns>
+    public bool Place(double width, double height, double topMargin)
     {
         var scale = Scale;
         var w = (int)Math.Ceiling(width * scale);
@@ -61,8 +67,50 @@ internal sealed class IslandWindowChrome
         var x = display.X + ((display.Width - w) / 2);
         var y = display.Y + (int)Math.Round(topMargin * scale);
 
-        _appWindow.MoveAndResize(new RectInt32(x, y, w, h));
+        var rect = new RectInt32(x, y, w, h);
+        if (rect.Equals(_placed))
+        {
+            return false;
+        }
+
+        _placed = rect;
+        _appWindow.MoveAndResize(rect);
         StartupLog.Write($"Island {width}x{height} DIP -> {w}x{h} px di ({x},{y}), skala {scale:0.##}, layar {display.Width}x{display.Height}");
+        return true;
+    }
+
+    /// <summary>
+    /// Batasi bagian window yang bisa disentuh mouse ke kotak selebar <paramref name="width"/> DIP di tengah atas.
+    /// Sisanya transparan dan klik tembus ke aplikasi di bawahnya. Kotaknya sengaja persegi (bukan bulat)
+    /// karena region Windows tidak antialias; sudut pil yang halus digambar oleh clip di dalamnya.
+    /// </summary>
+    public void SetHitArea(double width, double height)
+    {
+        var scale = Scale;
+        var w = (int)Math.Ceiling(width * scale);
+        var h = (int)Math.Ceiling(height * scale);
+        var left = (_placed.Width - w) / 2;
+
+        _hitArea = new RECT { Left = left, Top = 0, Right = left + w, Bottom = h };
+        // Setelah SetWindowRgn berhasil, region dimiliki Windows; jangan dihapus sendiri.
+        var region = CreateRectRgn(_hitArea.Left, _hitArea.Top, _hitArea.Right, _hitArea.Bottom);
+        if (SetWindowRgn(_hwnd, region, true) == 0)
+        {
+            _ = DeleteObject(region);
+        }
+    }
+
+    /// <summary>Apakah kursor mouse (posisi sebenarnya, bukan dari event XAML) ada di area island.</summary>
+    public bool ContainsCursor()
+    {
+        if (!GetCursorPos(out var cursor) || !GetWindowRect(_hwnd, out var rect))
+        {
+            return false;
+        }
+
+        var x = cursor.X - rect.Left;
+        var y = cursor.Y - rect.Top;
+        return x >= _hitArea.Left && x < _hitArea.Right && y >= _hitArea.Top && y < _hitArea.Bottom;
     }
 
     public void SetVisible(bool visible)

@@ -10,8 +10,8 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
 
 | Milestone | Isi | Status |
 | --- | --- | --- |
-| 1. Fondasi | Struktur proyek, window pil, animasi dasar, CI | sedang dikerjakan |
-| 2. Media | Spotify / YouTube Music lewat SMTC, kontrol lagu | belum |
+| 1. Fondasi | Struktur proyek, window pil, animasi dasar, CI | selesai |
+| 2. Media | Spotify / YouTube Music lewat SMTC, kontrol lagu | sedang dikerjakan |
 | 3. Animasi polish | Spring, crossfade, visualizer | belum |
 | 4. Lirik | Lirik sinkron dari LRCLIB | belum |
 | 5. Baterai | Notifikasi baterai keyboard & mouse Bluetooth | belum |
@@ -46,8 +46,8 @@ Visual Studio 2022/2026 dengan workload "WinUI application development" juga bis
 
 ```
 src/
-  Lanting.Core/     # logika island tanpa UI: controller prioritas, state machine, kontrak modul
-  Lanting.App/      # WinUI 3: window pil, animasi Composition, DI
+  Lanting.Core/     # logika island tanpa UI: controller prioritas, state machine, kontrak modul, modul media
+  Lanting.App/      # WinUI 3: window pil, animasi Composition, DI, sumber SMTC, view per fitur
 tests/
   Lanting.Core.Tests/
 docs/brand/         # logo dan ikon
@@ -58,5 +58,6 @@ Aturan arsitektur:
 - Modul fitur hanya bicara ke `IIslandHost` (Show / Withdraw). Modul tidak pernah menyentuh UI.
 - `IslandController` memilih konten yang tampil: prioritas tertinggi menang, bila sama yang terbaru.
 - `IslandStateMachine` mengubah kejadian (konten, hover, fullscreen) menjadi state: Hidden, Compact, Expanded, Notification.
-- Fitur baru = implement `IIslandModule` lalu daftarkan di `App.xaml.cs`. Tidak ada file lain yang perlu diubah.
+- Fitur baru = modul `IIslandModule` di Core + tampilannya `IIslandView` di App, lalu daftarkan keduanya di `App.xaml.cs`. `IslandWindow` tidak perlu diubah.
+- Yang butuh API Windows (misalnya SMTC) ada di App di balik interface Core (`IMediaSource`), supaya logika modul tetap bisa dites.
 - Tidak ada polling: semua berbasis event.

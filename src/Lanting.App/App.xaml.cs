@@ -1,5 +1,8 @@
+using Lanting.App.Media;
 using Lanting.App.Shell;
+using Lanting.App.Views;
 using Lanting.Core.Island;
+using Lanting.Core.Media;
 using Lanting.Core.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
@@ -72,8 +75,12 @@ public partial class App : Application
         services.AddSingleton<IslandStateMachine>();
         services.AddSingleton<ModuleHost>();
 
-        // Modul fitur didaftarkan di sini mulai milestone 2, contoh:
-        // services.AddSingleton<IIslandModule, MediaModule>();
+        // Modul fitur: modul di Core + tampilannya (IIslandView) di App.
+        services.AddSingleton<SmtcMediaSource>();
+        services.AddSingleton<IMediaSource>(sp => sp.GetRequiredService<SmtcMediaSource>());
+        services.AddSingleton<IMediaControls>(sp => sp.GetRequiredService<SmtcMediaSource>());
+        services.AddSingleton<IIslandModule, MediaModule>();
+        services.AddSingleton<IIslandView, MediaView>();
 
         // UI
         services.AddSingleton<IslandWindow>();

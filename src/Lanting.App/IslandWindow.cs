@@ -1,4 +1,5 @@
 using Lanting.App.Shell;
+using Lanting.App.Views;
 using Lanting.Core.Island;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
@@ -6,8 +7,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Shapes;
-using Windows.UI;
 using WinRT.Interop;
 using WinUIEx;
 
@@ -16,31 +15,37 @@ namespace Lanting.App;
 /// <summary>
 /// Window island. Tampilannya dibangun lewat kode (bukan XAML) supaya ringan dan
 /// tidak bergantung pada pemuatan file XAML saat startup.
+/// Isi pil berasal dari <see cref="IIslandView"/>: satu view per jenis konten, ditambah <see cref="IdleView"/>.
 /// </summary>
-public sealed partial class IslandWindow : Window
+internal sealed partial class IslandWindow : Window
 {
     private const double TopMargin = 8;
 
-    // Kira-kira waktu spring selesai; setelah itu window boleh mengecil tanpa memotong animasi.
+    // Kira-kira waktu spring selesai; setelah itu area klik boleh mengecil tanpa memotong animasi.
     private static readonly TimeSpan ShrinkDelay = TimeSpan.FromMilliseconds(450);
 
     private readonly IslandController _controller;
     private readonly IslandStateMachine _stateMachine;
+    private readonly IReadOnlyList<IIslandView> _views;
+    private readonly IdleView _idle = new();
     private readonly IslandWindowChrome _chrome;
     private readonly PillAnimator _animator;
     private readonly DispatcherQueue _dispatcher;
     private readonly DispatcherQueueTimer _shrinkTimer;
     private readonly Canvas _root;
     private readonly Grid _pill;
-    private readonly StackPanel _expandedContent;
-    private IslandShape _windowShape;
+    private readonly Grid _compactHost;
+    private readonly Grid _expandedHost;
+    private IIslandView? _activeView;
+    private IslandShape _hitShape;
 
-    public IslandWindow(IslandController controller, IslandStateMachine stateMachine)
+    public IslandWindow(IslandController controller, IslandStateMachine stateMachine, IEnumerable<IIslandView> views)
     {
         _controller = controller;
         _stateMachine = stateMachine;
+        _views = [.. views, _idle];
 
-        (_root, _pill, _expandedContent) = BuildContent();
+        (_root, _pill, _compactHost, _expandedHost) = BuildContent();
         Content = _root;
         ExtendsContentIntoTitleBar = true;
 
@@ -54,12 +59,16 @@ public sealed partial class IslandWindow : Window
         _shrinkTimer = _dispatcher.CreateTimer();
         _shrinkTimer.IsRepeating = false;
         _shrinkTimer.Interval = ShrinkDelay;
-        _shrinkTimer.Tick += (_, _) => ResizeWindow(IslandShape.For(_stateMachine.State));
+        _shrinkTimer.Tick += (_, _) => SetHitShape(IslandShape.For(_stateMachine.State));
+
+        ShowContent(_controller.Current);
 
         var initial = IslandShape.For(_stateMachine.State);
         _animator = new PillAnimator(_pill, initial);
-        PillAnimator.SetOpacity(_expandedContent, initial == IslandShape.Expanded ? 1f : 0f);
-        ResizeWindow(initial);
+        PillAnimator.SetOpacity(_expandedHost, _stateMachine.State == IslandState.Expanded ? 1f : 0f);
+        PillAnimator.SetOpacity(_compactHost, _stateMachine.State == IslandState.Expanded ? 0f : 1f);
+        _chrome.Place(IslandShape.Max.Width, IslandShape.Max.Height, TopMargin);
+        SetHitShape(initial);
         _chrome.SetVisible(_stateMachine.State != IslandState.Hidden);
 
         _controller.CurrentChanged += OnContentChanged;
@@ -70,10 +79,33 @@ public sealed partial class IslandWindow : Window
     /// <summary>Diminta keluar dari menu klik kanan; App yang mematikan modul dan menutup aplikasi.</summary>
     public event EventHandler? ExitRequested;
 
-    private void OnContentChanged(object? sender, IslandContent? content) => _stateMachine.OnContentChanged(content);
+    private void OnContentChanged(object? sender, IslandContent? content)
+    {
+        // Isi diantrikan sebelum state, supaya pil tidak sempat membesar dengan isi yang lama.
+        _dispatcher.TryEnqueue(() => ShowContent(content));
+        _stateMachine.OnContentChanged(content);
+    }
 
     // StateChanged bisa datang dari thread timer, jadi selalu pindah ke thread UI dulu.
     private void OnStateChanged(object? sender, IslandState state) => _dispatcher.TryEnqueue(() => ApplyState(state));
+
+    private void ShowContent(IslandContent? content)
+    {
+        var view = content is null ? _idle : _views.First(v => v.CanShow(content));
+        if (!ReferenceEquals(view, _activeView))
+        {
+            _compactHost.Children.Clear();
+            _expandedHost.Children.Clear();
+            _compactHost.Children.Add(view.Compact);
+            _expandedHost.Children.Add(view.Expanded);
+            _activeView = view;
+        }
+
+        if (content is not null)
+        {
+            view.Show(content);
+        }
+    }
 
     private void ApplyState(IslandState state)
     {
@@ -86,76 +118,63 @@ public sealed partial class IslandWindow : Window
         var target = IslandShape.For(state);
         _shrinkTimer.Stop();
 
-        if (target.Width >= _windowShape.Width || target.Height >= _windowShape.Height)
+        // Biasanya tidak melakukan apa-apa; hanya bila resolusi atau skala layar berubah.
+        if (_chrome.Place(IslandShape.Max.Width, IslandShape.Max.Height, TopMargin))
         {
-            // Membesar: perbesar window dulu, baru animasikan pil di dalamnya.
-            ResizeWindow(Union(target, _windowShape));
+            SetHitShape(_hitShape);
         }
 
-        if (target.Width < _windowShape.Width || target.Height < _windowShape.Height)
+        if (!_hitShape.Contains(target))
         {
-            // Mengecil: animasikan dulu, window menyusul setelah spring selesai.
+            // Membesar: area klik langsung ikut besar supaya mouse tidak "jatuh" keluar di tengah animasi.
+            SetHitShape(IslandShape.Union(target, _hitShape));
+        }
+
+        if (!target.Contains(_hitShape))
+        {
+            // Mengecil: area klik menyusul setelah spring selesai.
             _shrinkTimer.Start();
         }
 
         _chrome.SetVisible(true);
         _animator.AnimateTo(target);
-        _animator.Fade(_expandedContent, state == IslandState.Expanded);
+        _animator.Fade(_expandedHost, state == IslandState.Expanded);
+        _animator.Fade(_compactHost, state != IslandState.Expanded);
     }
 
-    private void ResizeWindow(IslandShape shape)
+    private void SetHitShape(IslandShape shape)
     {
-        _windowShape = shape;
-        _chrome.Resize(shape.Width, shape.Height, TopMargin);
-
-        // Pil (selebar Max) diletakkan di tengah window supaya clip yang rata tengah tetap di tengah layar.
-        Canvas.SetLeft(_pill, (shape.Width - IslandShape.Max.Width) / 2);
+        _hitShape = shape;
+        _chrome.SetHitArea(shape.Width, shape.Height);
     }
 
-    private (Canvas Root, Grid Pill, StackPanel ExpandedContent) BuildContent()
+    private (Canvas Root, Grid Pill, Grid CompactHost, Grid ExpandedHost) BuildContent()
     {
-        var dot = new Ellipse
+        // Wadah isi pil kecil: rata tengah atas, persis di bawah clip Compact.
+        var compactHost = new Grid
         {
-            Width = 10,
-            Height = 10,
-            Fill = new SolidColorBrush(Color.FromArgb(255, 0x2D, 0xD4, 0xBF)),
-            VerticalAlignment = VerticalAlignment.Center,
+            Width = IslandShape.Compact.Width,
+            Height = IslandShape.Compact.Height,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
         };
-        var title = new TextBlock
+        var expandedHost = new Grid
         {
-            Text = "Lanting",
-            Foreground = new SolidColorBrush(Colors.White),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Width = IslandShape.Expanded.Width,
+            Height = IslandShape.Expanded.Height,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
         };
-        var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        header.Children.Add(dot);
-        header.Children.Add(title);
 
-        var expanded = new StackPanel { Margin = new Thickness(28, 24, 28, 24), Spacing = 6 };
-        expanded.Children.Add(header);
-        expanded.Children.Add(new TextBlock
-        {
-            Text = "Belum ada modul aktif. Lagu, lirik, dan baterai menyusul.",
-            Foreground = new SolidColorBrush(Color.FromArgb(255, 0xA0, 0xA0, 0xA0)),
-            FontSize = 13,
-            TextWrapping = TextWrapping.Wrap,
-        });
-        expanded.Children.Add(new TextBlock
-        {
-            Text = "Klik kanan untuk keluar.",
-            Foreground = new SolidColorBrush(Color.FromArgb(255, 0x70, 0x70, 0x70)),
-            FontSize = 12,
-        });
-
-        // Pil selalu berukuran maksimum; bentuk yang terlihat diatur oleh clip yang dianimasikan.
+        // Pil selalu sebesar window; bentuk yang terlihat diatur oleh clip yang dianimasikan.
         var pill = new Grid
         {
             Width = IslandShape.Max.Width,
             Height = IslandShape.Max.Height,
             Background = new SolidColorBrush(Colors.Black),
         };
-        pill.Children.Add(expanded);
+        pill.Children.Add(expandedHost);
+        pill.Children.Add(compactHost);
 
         var exit = new MenuFlyoutItem { Text = "Keluar dari Lanting" };
         exit.Click += OnExitClick;
@@ -166,20 +185,26 @@ public sealed partial class IslandWindow : Window
         {
             Background = new SolidColorBrush(Colors.Transparent),
             ContextFlyout = menu,
+            // Pil selalu hitam, jadi tombol dan menu memakai tema gelap apa pun tema Windows-nya.
+            RequestedTheme = ElementTheme.Dark,
         };
         root.Children.Add(pill);
         root.PointerEntered += OnPointerEntered;
         root.PointerExited += OnPointerExited;
 
-        return (root, pill, expanded);
+        return (root, pill, compactHost, expandedHost);
     }
-
-    private static IslandShape Union(IslandShape a, IslandShape b) =>
-        new(Math.Max(a.Width, b.Width), Math.Max(a.Height, b.Height), a.CornerRadius);
 
     private void OnPointerEntered(object sender, PointerRoutedEventArgs e) => _stateMachine.OnPointerEntered();
 
-    private void OnPointerExited(object sender, PointerRoutedEventArgs e) => _stateMachine.OnPointerExited();
+    private void OnPointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        // PointerExited dari tombol di dalam pil ikut naik ke sini; abaikan selama mouse masih di dalam window.
+        if (!_chrome.ContainsCursor())
+        {
+            _stateMachine.OnPointerExited();
+        }
+    }
 
     private void OnExitClick(object sender, RoutedEventArgs e) => ExitRequested?.Invoke(this, EventArgs.Empty);
 

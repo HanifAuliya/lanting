@@ -15,7 +15,9 @@ internal sealed class PillAnimator
     // Angka awal dari dokumen rencana; di-tuning di milestone 3.
     private const float DampingRatio = 0.72f;
     private static readonly TimeSpan Period = TimeSpan.FromMilliseconds(55);
-    private static readonly TimeSpan FadeDuration = TimeSpan.FromMilliseconds(180);
+    private static readonly TimeSpan FadeInDuration = TimeSpan.FromMilliseconds(180);
+    private static readonly TimeSpan FadeInDelay = TimeSpan.FromMilliseconds(110);
+    private static readonly TimeSpan FadeOutDuration = TimeSpan.FromMilliseconds(90);
 
     private readonly Compositor _compositor;
     private readonly CompositionRoundedRectangleGeometry _clip;
@@ -47,9 +49,10 @@ internal sealed class PillAnimator
         var visual = ElementCompositionPreview.GetElementVisual(element);
         var fade = _compositor.CreateScalarKeyFrameAnimation();
         fade.InsertKeyFrame(1f, visible ? 1f : 0f);
-        fade.Duration = FadeDuration;
-        // Saat muncul, tunggu pil membesar dulu sedikit supaya isi tidak terpotong.
-        fade.DelayTime = visible ? TimeSpan.FromMilliseconds(90) : TimeSpan.Zero;
+        // Isi lama hilang cepat sebelum bentuk pil banyak berubah, supaya tidak terlihat terpotong clip;
+        // isi baru menunggu pil hampir sampai di ukuran barunya.
+        fade.Duration = visible ? FadeInDuration : FadeOutDuration;
+        fade.DelayTime = visible ? FadeInDelay : TimeSpan.Zero;
         visual.StartAnimation(nameof(Visual.Opacity), fade);
     }
 
