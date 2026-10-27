@@ -36,6 +36,11 @@ public partial class App : Application
                 return;
             }
 
+            if (XamlDiagnostics.IsEnabled)
+            {
+                XamlDiagnostics.Run();
+            }
+
             _services = ConfigureServices();
 
             var window = _services.GetRequiredService<IslandWindow>();

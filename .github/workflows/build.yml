@@ -30,6 +30,8 @@ jobs:
         run: |
           $log = Join-Path $env:LOCALAPPDATA 'Lanting\lanting.log'
           Remove-Item $log -ErrorAction SilentlyContinue
+          $env:LANTING_NO_DIALOG = '1'
+          $env:LANTING_XAML_DIAG = '1'
           $p = Start-Process -FilePath out/Lanting/Lanting.exe -PassThru
           Start-Sleep -Seconds 12
 
@@ -51,6 +53,11 @@ jobs:
           Write-Host "---- lanting.log ----"
           if (Test-Path $log) { Get-Content $log; Copy-Item $log smoke/ } else { Write-Host "(log tidak ada)" }
 
+          if ((Test-Path $log) -and (Select-String -Path $log -Pattern 'FATAL' -Quiet)) {
+            Write-Host "Ada error FATAL di log."
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+            exit 1
+          }
           if ($p.HasExited) {
             Write-Host "Lanting.exe berhenti sendiri, exit code $($p.ExitCode)"
             exit 1

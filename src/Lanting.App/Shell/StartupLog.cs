@@ -50,6 +50,12 @@ internal static class StartupLog
 
     public static void ShowMessage(string text, bool isError = false)
     {
+        // Di CI tidak ada orang yang menutup kotak pesan.
+        if (Environment.GetEnvironmentVariable("LANTING_NO_DIALOG") == "1")
+        {
+            return;
+        }
+
         const uint MB_ICONERROR = 0x10;
         const uint MB_ICONINFORMATION = 0x40;
         const uint MB_TOPMOST = 0x40000;
