@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Lanting.App.IslandWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Root berupa Canvas transparan seukuran window. Pil di dalamnya selalu berukuran maksimum
+        (lihat IslandShape.Max) dan bentuk yang terlihat diatur oleh clip yang dianimasikan.
+    -->
+    <Canvas
+        x:Name="Root"
+        Background="Transparent"
+        PointerEntered="OnPointerEntered"
+        PointerExited="OnPointerExited">
+
+        <Canvas.ContextFlyout>
+            <MenuFlyout>
+                <MenuFlyoutItem Text="Keluar dari Lanting" Click="OnExitClick" />
+            </MenuFlyout>
+        </Canvas.ContextFlyout>
+
+        <Grid
+            x:Name="Pill"
+            Width="400"
+            Height="160"
+            Background="Black">
+
+            <!-- Isi saat Expanded. Mulai milestone 2 diganti view dari modul (media, lirik, baterai). -->
+            <StackPanel
+                x:Name="ExpandedContent"
+                Margin="28,24"
+                Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Ellipse Width="10" Height="10" Fill="#2DD4BF" VerticalAlignment="Center" />
+                    <TextBlock
+                        Text="Lanting"
+                        Foreground="White"
+                        FontSize="20"
+                        FontWeight="SemiBold" />
+                </StackPanel>
+                <TextBlock
+                    Text="Belum ada modul aktif. Lagu, lirik, dan baterai menyusul."
+                    Foreground="#A0A0A0"
+                    FontSize="13"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    Text="Klik kanan untuk keluar."
+                    Foreground="#707070"
+                    FontSize="12" />
+            </StackPanel>
+        </Grid>
+    </Canvas>
+</Window>

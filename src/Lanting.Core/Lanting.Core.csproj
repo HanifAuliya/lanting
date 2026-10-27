@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Murni .NET, tanpa WinUI/WinRT: logika island bisa dites di mesin mana pun. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Lanting.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lanting.Core.Tests" />
+  </ItemGroup>
+</Project>
