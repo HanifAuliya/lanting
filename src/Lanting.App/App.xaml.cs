@@ -7,8 +7,10 @@ using Lanting.Core.Island;
 using Lanting.Core.Lyrics;
 using Lanting.Core.Media;
 using Lanting.Core.Modules;
+using Lanting.Core.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
+using WinRT.Interop;
 
 namespace Lanting.App;
 
@@ -16,6 +18,8 @@ public partial class App : Application
 {
     private Mutex? _singleInstance;
     private ServiceProvider? _services;
+    private FullscreenWatcher? _fullscreen;
+    private SettingsWindow? _settingsWindow;
 
     public App()
     {
@@ -37,7 +41,7 @@ public partial class App : Application
             if (!isFirst)
             {
                 StartupLog.Write("Instance lain sudah berjalan, keluar.");
-                StartupLog.ShowMessage("Lanting sudah berjalan.\n\nKlik kanan pil di tengah atas layar untuk keluar.");
+                StartupLog.ShowMessage("Lanting sudah berjalan.\n\nKlik ikon Lanting di system tray, atau klik kanan pil di tengah atas layar, untuk pengaturan atau keluar.");
                 Exit();
                 return;
             }
@@ -51,8 +55,16 @@ public partial class App : Application
 
             var window = _services.GetRequiredService<IslandWindow>();
             window.ExitRequested += async (_, _) => await ShutdownAsync();
+            window.SettingsRequested += (_, _) => OpenSettings();
             window.Activate();
             StartupLog.Write("Window aktif.");
+
+            var tray = _services.GetRequiredService<TrayMenu>();
+            tray.ExitRequested += async (_, _) => await ShutdownAsync();
+            tray.SettingsRequested += (_, _) => OpenSettings();
+
+            _fullscreen = new FullscreenWatcher(window, WindowNative.GetWindowHandle(window));
+            _services.GetRequiredService<SettingsApplier>().Attach(_fullscreen);
 
             _services.GetRequiredService<MediaModule>().LyricsFailed += (_, e) => StartupLog.Write($"Lirik gagal dicari: {e.Message}");
 
@@ -75,6 +87,8 @@ public partial class App : Application
         // Core
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(new IslandOptions());
+        services.AddSingleton(new SettingsStore(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lanting", "settings.json")));
         services.AddSingleton<IslandController>();
         services.AddSingleton<IIslandHost>(sp => sp.GetRequiredService<IslandController>());
         services.AddSingleton<IslandStateMachine>();
@@ -96,22 +110,45 @@ public partial class App : Application
         }));
         services.AddSingleton<MediaModule>();
         services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<MediaModule>());
-        services.AddSingleton<IIslandView, MediaView>();
+        services.AddSingleton<MediaView>();
+        services.AddSingleton<IIslandView>(sp => sp.GetRequiredService<MediaView>());
 
         services.AddSingleton(new BatteryOptions());
         services.AddSingleton<IBatterySource, PnpBatterySource>();
-        services.AddSingleton<IIslandModule, BatteryModule>();
+        services.AddSingleton<BatteryModule>();
+        services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<BatteryModule>());
         services.AddSingleton<IIslandView, BatteryView>();
 
         // UI
         services.AddSingleton<IslandWindow>();
+        services.AddSingleton<TrayMenu>();
+        services.AddSingleton<SettingsApplier>();
 
         return services.BuildServiceProvider();
+    }
+
+    private void OpenSettings()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        if (_settingsWindow is null)
+        {
+            _settingsWindow = new SettingsWindow(_services.GetRequiredService<SettingsStore>());
+            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        }
+
+        _settingsWindow.Activate();
     }
 
     private async Task ShutdownAsync()
     {
         StartupLog.Write("Keluar.");
+        _settingsWindow?.Close();
+        _fullscreen?.Dispose();
+        _fullscreen = null;
         if (_services is not null)
         {
             await _services.GetRequiredService<ModuleHost>().DisposeAsync();

@@ -42,7 +42,7 @@ internal sealed class IdleView : IIslandView
         });
         expanded.Children.Add(new TextBlock
         {
-            Text = "Klik kanan untuk keluar.",
+            Text = "Klik kanan untuk pengaturan atau keluar.",
             Foreground = new SolidColorBrush(Color.FromArgb(255, 0x70, 0x70, 0x70)),
             FontSize = 12,
         });

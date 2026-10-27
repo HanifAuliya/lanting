@@ -80,3 +80,19 @@ jobs:
           name: Lanting-win-x64
           path: out/Lanting
           retention-days: 14
+
+      - name: Buat installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y }
+          $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          & $iscc installer/Lanting.iss "/DAppVersion=$version"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lanting-Setup
+          path: out/installer/*.exe
+          retention-days: 14

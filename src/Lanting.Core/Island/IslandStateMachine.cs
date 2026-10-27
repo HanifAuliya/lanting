@@ -6,7 +6,7 @@ namespace Lanting.Core.Island;
 /// </summary>
 public sealed class IslandStateMachine : IDisposable
 {
-    private readonly IslandOptions _options;
+    private IslandOptions _options;
     private readonly TimeProvider _time;
     private readonly Lock _gate = new();
     private IslandContent? _content;
@@ -68,6 +68,9 @@ public sealed class IslandStateMachine : IDisposable
                 Timeout.InfiniteTimeSpan);
         }
     }
+
+    /// <summary>Pengaturan berubah (misalnya "tampilkan pil saat tidak ada lagu" dimatikan).</summary>
+    public void UpdateOptions(IslandOptions options) => Update(() => _options = options);
 
     /// <summary>Sembunyikan island saat game, video, atau presentasi fullscreen.</summary>
     public void OnFullscreenChanged(bool isFullscreen) => Update(() => _suppressed = isFullscreen);

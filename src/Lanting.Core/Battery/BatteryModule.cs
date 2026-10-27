@@ -6,6 +6,9 @@ namespace Lanting.Core.Battery;
 /// <summary>Batas baterai untuk pemberitahuan.</summary>
 public sealed record BatteryOptions
 {
+    /// <summary>Pemberitahuan baterai aktif.</summary>
+    public bool Enabled { get; init; } = true;
+
     /// <summary>Di bawah atau sama dengan ini: "baterai lemah".</summary>
     public int LowPercent { get; init; } = 20;
 
@@ -29,7 +32,7 @@ public sealed class BatteryModule : IIslandModule
     private static readonly TimeSpan CriticalDuration = TimeSpan.FromSeconds(8);
 
     private readonly IBatterySource _source;
-    private readonly BatteryOptions _options;
+    private BatteryOptions _options;
     private readonly Lock _gate = new();
     private readonly Dictionary<string, DeviceState> _devices = [];
     private IIslandHost? _host;
@@ -42,6 +45,15 @@ public sealed class BatteryModule : IIslandModule
     }
 
     public string Id => ModuleId;
+
+    /// <summary>Pengaturan berubah. Berlaku untuk perubahan baterai berikutnya.</summary>
+    public void UpdateOptions(BatteryOptions options)
+    {
+        lock (_gate)
+        {
+            _options = options;
+        }
+    }
 
     /// <summary>Daftar perangkat yang diketahui saat ini, misalnya untuk log.</summary>
     public IReadOnlyList<BatteryDevice> Devices
@@ -145,7 +157,7 @@ public sealed class BatteryModule : IIslandModule
                 }
             }
 
-            if (notice is { } kind)
+            if (notice is { } kind && _options.Enabled)
             {
                 _host.Show(Content(new BatteryNotice(device, kind)));
             }

@@ -1,0 +1,57 @@
+name: release
+
+# Membuat rilis GitHub saat tag versi di-push, misalnya:
+#   git tag v0.1.0
+#   git push origin v0.1.0
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Tes unit Core
+        run: dotnet test tests/Lanting.Core.Tests -c Release
+
+      - name: Versi dari tag
+        id: version
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Publish Lanting.exe (win-x64, self-contained)
+        run: dotnet publish src/Lanting.App -c Release -r win-x64 -p:Platform=x64 --self-contained -p:Version=${{ steps.version.outputs.version }} -o out/Lanting
+
+      - name: Buat installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y }
+          & $iscc installer/Lanting.iss "/DAppVersion=${{ steps.version.outputs.version }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Zip versi portable
+        shell: pwsh
+        run: Compress-Archive -Path out/Lanting/* -DestinationPath "out/Lanting-${{ steps.version.outputs.version }}-win-x64-portable.zip"
+
+      - name: Buat rilis GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create '${{ github.ref_name }}' `
+            out/installer/Lanting-Setup-${{ steps.version.outputs.version }}.exe `
+            out/Lanting-${{ steps.version.outputs.version }}-win-x64-portable.zip `
+            --title "Lanting ${{ steps.version.outputs.version }}" `
+            --generate-notes
