@@ -36,6 +36,7 @@ internal sealed partial class IslandWindow : Window
     private readonly Grid _pill;
     private readonly Grid _compactHost;
     private readonly Grid _expandedHost;
+    private readonly Grid _notificationHost;
     private IIslandView? _activeView;
     private IslandShape _hitShape;
     private double _compactWidth = IslandShape.Compact.Width;
@@ -46,7 +47,7 @@ internal sealed partial class IslandWindow : Window
         _stateMachine = stateMachine;
         _views = [.. views, _idle];
 
-        (_root, _pill, _compactHost, _expandedHost) = BuildContent();
+        (_root, _pill, _compactHost, _expandedHost, _notificationHost) = BuildContent();
         Content = _root;
         ExtendsContentIntoTitleBar = true;
 
@@ -66,6 +67,7 @@ internal sealed partial class IslandWindow : Window
         _animator = new PillAnimator(_pill, initial);
         PillAnimator.SetRevealed(_expandedHost, _stateMachine.State == IslandState.Expanded);
         PillAnimator.SetRevealed(_compactHost, _stateMachine.State != IslandState.Expanded);
+        PillAnimator.SetRevealed(_notificationHost, false);
         _chrome.Place(IslandShape.Max.Width, IslandShape.Max.Height, TopMargin);
         SetHitShape(initial);
         _chrome.SetVisible(_stateMachine.State != IslandState.Hidden);
@@ -96,8 +98,14 @@ internal sealed partial class IslandWindow : Window
         {
             _compactHost.Children.Clear();
             _expandedHost.Children.Clear();
+            _notificationHost.Children.Clear();
             _compactHost.Children.Add(view.Compact);
             _expandedHost.Children.Add(view.Expanded);
+            if (view.Notification is { } notification)
+            {
+                _notificationHost.Children.Add(notification);
+            }
+
             _activeView = view;
             Motion.Pop(view.Compact, view.Expanded);
         }
@@ -129,8 +137,11 @@ internal sealed partial class IslandWindow : Window
 
         Reshape(ShapeFor(state));
         _chrome.SetVisible(true);
+        // Pil notifikasi memakai isi khusus bila view punya; kalau tidak, isi pil kecil yang tampil.
+        var notification = state == IslandState.Notification && _notificationHost.Children.Count > 0;
         _animator.Reveal(_expandedHost, state == IslandState.Expanded);
-        _animator.Reveal(_compactHost, state != IslandState.Expanded);
+        _animator.Reveal(_notificationHost, notification);
+        _animator.Reveal(_compactHost, state != IslandState.Expanded && !notification);
     }
 
     private IslandShape ShapeFor(IslandState state) =>
@@ -170,7 +181,7 @@ internal sealed partial class IslandWindow : Window
         _chrome.SetHitArea(shape.Width, shape.Height);
     }
 
-    private (Canvas Root, Grid Pill, Grid CompactHost, Grid ExpandedHost) BuildContent()
+    private (Canvas Root, Grid Pill, Grid CompactHost, Grid ExpandedHost, Grid NotificationHost) BuildContent()
     {
         // Wadah isi pil kecil: rata tengah atas, persis di bawah clip Compact.
         var compactHost = new Grid
@@ -188,6 +199,14 @@ internal sealed partial class IslandWindow : Window
             VerticalAlignment = VerticalAlignment.Top,
         };
 
+        var notificationHost = new Grid
+        {
+            Width = IslandShape.Notification.Width,
+            Height = IslandShape.Notification.Height,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+
         // Pil selalu sebesar window; bentuk yang terlihat diatur oleh clip yang dianimasikan.
         var pill = new Grid
         {
@@ -197,6 +216,7 @@ internal sealed partial class IslandWindow : Window
         };
         pill.Children.Add(expandedHost);
         pill.Children.Add(compactHost);
+        pill.Children.Add(notificationHost);
 
         var exit = new MenuFlyoutItem { Text = "Keluar dari Lanting" };
         exit.Click += OnExitClick;
@@ -214,7 +234,7 @@ internal sealed partial class IslandWindow : Window
         root.PointerEntered += OnPointerEntered;
         root.PointerExited += OnPointerExited;
 
-        return (root, pill, compactHost, expandedHost);
+        return (root, pill, compactHost, expandedHost, notificationHost);
     }
 
     private void OnPointerEntered(object sender, PointerRoutedEventArgs e) => _stateMachine.OnPointerEntered();

@@ -13,10 +13,12 @@ Lightweight Dynamic Island for Windows 11. C# + WinUI 3 on .NET 10, Windows App 
 - `src/Lanting.Core`: no UI. `IslandController` picks the content to show (priority, then most recent). `IslandStateMachine` handles Hidden, Compact, Expanded and Notification. `IIslandModule` and `ModuleHost` isolate module faults.
   - `Lyrics/`: `LrcParser`, `TrackQuery` (cleans YouTube-style titles), `LrcLibClient` (LRCLIB search + memory cache). `MediaModule` drives lyric lines with one timer per line via `PlaybackClock`; Firefox/Zen report no timeline, so position is estimated from the observed track start.
   - `Media/`: `ArtworkColor` picks the accent color from album art. `MediaModule` turns `IMediaSource` updates into the `media/now-playing` content (payload `NowPlaying`).
+  - `Battery/`: `BatteryModule` announces connect/disconnect (Normal, 3 s) and low/critical battery (Alert/Critical notifications), each warning once until the battery is recharged above `RearmPercent`.
 - `src/Lanting.App`: WinUI shell.
   - `IslandWindow.cs` builds its UI **in code, not XAML**. `IslandWindow.xaml` threw XamlParseException at startup, so keep new window UI in code.
-  - `Views/`: one `IIslandView` per content type (`MediaView`), plus `IdleView` as the fallback. `IslandWindow` picks the first view whose `CanShow` matches.
+  - `Views/`: one `IIslandView` per content type (`MediaView`, `BatteryView`; optional `Notification` element for the 360x64 pill), plus `IdleView` as the fallback. `IslandWindow` picks the first view whose `CanShow` matches.
     `Motion` holds shared composition animations; `Visualizer` costs about 8% of one core while music plays (60 fps compositor), 0% when paused.
+  - `Battery/PnpBatterySource.cs`: DeviceWatcher on Bluetooth device nodes, reading `{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2` (battery) and `{83DA6326-97A6-4088-9453-A1923F573B29} 15` (connected), grouped by ContainerId. Not yet tested with a real Bluetooth keyboard/mouse.
   - `Media/SmtcMediaSource.cs`: reads Windows SMTC (event based) and sends play/pause/next/previous.
   - `Shell/` holds the native window chrome, the composition spring animator (`PillAnimator`), `AppsFolder` (app name from an AppUserModelId) and `StartupLog`.
 - `tests/Lanting.Core.Tests`: xunit tests for Core, using FakeTimeProvider.

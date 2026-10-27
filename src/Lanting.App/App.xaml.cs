@@ -1,6 +1,8 @@
+using Lanting.App.Battery;
 using Lanting.App.Media;
 using Lanting.App.Shell;
 using Lanting.App.Views;
+using Lanting.Core.Battery;
 using Lanting.Core.Island;
 using Lanting.Core.Lyrics;
 using Lanting.Core.Media;
@@ -95,6 +97,11 @@ public partial class App : Application
         services.AddSingleton<MediaModule>();
         services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<MediaModule>());
         services.AddSingleton<IIslandView, MediaView>();
+
+        services.AddSingleton(new BatteryOptions());
+        services.AddSingleton<IBatterySource, PnpBatterySource>();
+        services.AddSingleton<IIslandModule, BatteryModule>();
+        services.AddSingleton<IIslandView, BatteryView>();
 
         // UI
         services.AddSingleton<IslandWindow>();

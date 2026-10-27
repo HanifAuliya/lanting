@@ -19,6 +19,12 @@ internal interface IIslandView
     /// <summary>Isi pil besar, berukuran <see cref="Shell.IslandShape.Expanded"/>.</summary>
     UIElement Expanded { get; }
 
+    /// <summary>
+    /// Isi pil notifikasi (<see cref="Shell.IslandShape.Notification"/>), untuk konten penting yang sementara.
+    /// <c>null</c> bila view tidak punya; pil kecil yang dipakai.
+    /// </summary>
+    UIElement? Notification => null;
+
     bool CanShow(IslandContent content);
 
     void Show(IslandContent content);
