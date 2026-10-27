@@ -81,6 +81,9 @@ internal sealed partial class IslandWindow : Window
     /// <summary>Diminta keluar dari menu klik kanan; App yang mematikan modul dan menutup aplikasi.</summary>
     public event EventHandler? ExitRequested;
 
+    /// <summary>"Pengaturan" dipilih dari menu klik kanan.</summary>
+    public event EventHandler? SettingsRequested;
+
     private void OnContentChanged(object? sender, IslandContent? content)
     {
         // Isi diantrikan sebelum state, supaya pil tidak sempat membesar dengan isi yang lama.
@@ -106,7 +109,9 @@ internal sealed partial class IslandWindow : Window
                 _notificationHost.Children.Add(notification);
             }
 
+            _activeView?.SetCompactOnScreen(false);
             _activeView = view;
+            view.SetCompactOnScreen(_stateMachine.State is IslandState.Compact);
             Motion.Pop(view.Compact, view.Expanded);
         }
 
@@ -132,6 +137,7 @@ internal sealed partial class IslandWindow : Window
         if (state == IslandState.Hidden)
         {
             _chrome.SetVisible(false);
+            _activeView?.SetCompactOnScreen(false);
             return;
         }
 
@@ -142,6 +148,7 @@ internal sealed partial class IslandWindow : Window
         _animator.Reveal(_expandedHost, state == IslandState.Expanded);
         _animator.Reveal(_notificationHost, notification);
         _animator.Reveal(_compactHost, state != IslandState.Expanded && !notification);
+        _activeView?.SetCompactOnScreen(state != IslandState.Expanded && !notification);
     }
 
     private IslandShape ShapeFor(IslandState state) =>
@@ -218,9 +225,13 @@ internal sealed partial class IslandWindow : Window
         pill.Children.Add(compactHost);
         pill.Children.Add(notificationHost);
 
+        var settings = new MenuFlyoutItem { Text = "Pengaturan" };
+        settings.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
         var exit = new MenuFlyoutItem { Text = "Keluar dari Lanting" };
         exit.Click += OnExitClick;
         var menu = new MenuFlyout();
+        menu.Items.Add(settings);
+        menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(exit);
 
         var root = new Canvas

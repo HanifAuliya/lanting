@@ -20,6 +20,8 @@ Lightweight Dynamic Island for Windows 11. C# + WinUI 3 on .NET 10, Windows App 
     `Motion` holds shared composition animations; `Visualizer` costs about 8% of one core while music plays (60 fps compositor), 0% when paused.
   - `Battery/PnpBatterySource.cs`: DeviceWatcher on Bluetooth device nodes, reading `{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2` (battery) and `{83DA6326-97A6-4088-9453-A1923F573B29} 15` (connected), grouped by ContainerId. Not yet tested with a real Bluetooth keyboard/mouse.
   - `Media/SmtcMediaSource.cs`: reads Windows SMTC (event based) and sends play/pause/next/previous.
+  - `SettingsWindow.cs` (code-built, Mica) writes to `SettingsStore` (Core, `%LOCALAPPDATA%\Lanting\settings.json`); `SettingsApplier` pushes settings live to the state machine, modules and views.
+  - `Shell/TrayMenu.cs` uses WinUIEx `TrayIcon`; `Shell/FullscreenWatcher.cs` registers the island as an appbar to receive `ABN_FULLSCREENAPP`; `Shell/AutoStart.cs` uses the HKCU Run key (same value the installer writes).
   - `Shell/` holds the native window chrome, the composition spring animator (`PillAnimator`), `AppsFolder` (app name from an AppUserModelId) and `StartupLog`.
 - `tests/Lanting.Core.Tests`: xunit tests for Core, using FakeTimeProvider.
 
@@ -31,4 +33,5 @@ dotnet build src/Lanting.App            # F5 in VS Code builds and launches Debu
 ```
 
 - The startup log is `%LOCALAPPDATA%\Lanting\lanting.log`. Read it first when the app does not appear.
-- CI (`.github/workflows/build.yml`) runs the tests, the build and a publish, then a smoke test that launches the exe and fails on `FATAL` in the log.
+- CI (`.github/workflows/build.yml`) runs the tests, the build and a publish, then a smoke test that launches the exe and fails on `FATAL` in the log, then builds the Inno Setup installer (`installer/Lanting.iss`).
+- Releases: bump `<Version>` in `Directory.Build.props`, then push a `vX.Y.Z` tag; `.github/workflows/release.yml` publishes the installer and a portable zip.

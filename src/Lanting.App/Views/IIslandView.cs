@@ -25,6 +25,14 @@ internal interface IIslandView
     /// </summary>
     UIElement? Notification => null;
 
+    /// <summary>
+    /// Pil kecil view ini mulai/berhenti terlihat (pil besar dibuka, island disembunyikan, dsb.).
+    /// Dipakai untuk menghentikan animasi berulang yang tidak terlihat.
+    /// </summary>
+    void SetCompactOnScreen(bool onScreen)
+    {
+    }
+
     bool CanShow(IslandContent content);
 
     void Show(IslandContent content);

@@ -32,7 +32,10 @@ internal sealed class Visualizer
 
     private readonly Rectangle[] _bars;
     private readonly SolidColorBrush _brush;
-    private bool? _playing;
+    private bool _playing;
+    private bool _enabled = true;
+    private bool _onScreen = true;
+    private bool? _animating;
 
     public Visualizer()
     {
@@ -72,20 +75,43 @@ internal sealed class Visualizer
         _brush.Color = color;
     }
 
+    /// <summary>Lagu sedang diputar.</summary>
     public void SetPlaying(bool playing)
     {
-        if (_playing == playing)
+        _playing = playing;
+        Apply();
+    }
+
+    /// <summary>Dimatikan dari pengaturan: bar disembunyikan dan animasi berhenti.</summary>
+    public void SetEnabled(bool enabled)
+    {
+        _enabled = enabled;
+        Root.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        Apply();
+    }
+
+    /// <summary>Pil kecil sedang tidak terlihat (pil besar terbuka, atau island disembunyikan): hemat CPU.</summary>
+    public void SetOnScreen(bool onScreen)
+    {
+        _onScreen = onScreen;
+        Apply();
+    }
+
+    private void Apply()
+    {
+        var animate = _playing && _enabled && _onScreen;
+        if (_animating == animate)
         {
             return;
         }
 
-        _playing = playing;
+        _animating = animate;
         for (var i = 0; i < _bars.Length; i++)
         {
             var visual = ElementCompositionPreview.GetElementVisual(_bars[i]);
             var compositor = visual.Compositor;
             var animation = compositor.CreateScalarKeyFrameAnimation();
-            if (playing)
+            if (animate)
             {
                 var (ms, heights) = Rhythms[i];
                 for (var k = 0; k < heights.Length; k++)

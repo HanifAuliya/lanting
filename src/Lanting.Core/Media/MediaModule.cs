@@ -37,6 +37,7 @@ public sealed class MediaModule : IIslandModule
     private NowPlaying? _shown;
     private SyncedLyrics? _lyrics;
     private bool _positionKnown;
+    private bool _lyricsEnabled = true;
     private ITimer? _lineTimer;
     private ITimer? _searchTimer;
     private TimeSpan? _duration;
@@ -54,6 +55,48 @@ public sealed class MediaModule : IIslandModule
     public event EventHandler<Exception>? LyricsFailed;
 
     public string Id => ModuleId;
+
+    /// <summary>Cari dan tampilkan lirik. Bisa diubah kapan saja dari pengaturan.</summary>
+    public bool LyricsEnabled
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _lyricsEnabled;
+            }
+        }
+
+        set
+        {
+            lock (_gate)
+            {
+                if (_lyricsEnabled == value)
+                {
+                    return;
+                }
+
+                _lyricsEnabled = value;
+                if (_host is null || _song is null)
+                {
+                    return;
+                }
+
+                if (value)
+                {
+                    StartSearchTimer();
+                }
+                else
+                {
+                    _fetch?.Cancel();
+                    _fetch = null;
+                    _lyrics = null;
+                }
+
+                Publish();
+            }
+        }
+    }
 
     public async Task StartAsync(IIslandHost host, CancellationToken cancellationToken)
     {
@@ -137,7 +180,7 @@ public sealed class MediaModule : IIslandModule
                 // Saat Lanting baru dinyalakan di tengah lagu, posisinya belum diketahui.
                 _positionKnown = previous is not null;
                 _clock.Reset(TimeSpan.Zero, nowPlaying.IsPlaying);
-                _searchTimer = _time.CreateTimer(_ => OnSearchTimer(), null, LyricsSearchDelay, Timeout.InfiniteTimeSpan);
+                StartSearchTimer();
             }
             else
             {
@@ -164,13 +207,22 @@ public sealed class MediaModule : IIslandModule
         }
     }
 
+    // Dipanggil di dalam _gate.
+    private void StartSearchTimer()
+    {
+        _searchTimer?.Dispose();
+        _searchTimer = _lyricsEnabled
+            ? _time.CreateTimer(_ => OnSearchTimer(), null, LyricsSearchDelay, Timeout.InfiniteTimeSpan)
+            : null;
+    }
+
     private void OnSearchTimer()
     {
         lock (_gate)
         {
             _searchTimer?.Dispose();
             _searchTimer = null;
-            if (_host is null || _song is null)
+            if (_host is null || _song is null || !_lyricsEnabled)
             {
                 return;
             }
@@ -211,7 +263,7 @@ public sealed class MediaModule : IIslandModule
         lock (_gate)
         {
             // Lagu sudah berganti selama mencari: hasil ini untuk lagu lama.
-            if (fetch.IsCancellationRequested || _host is null)
+            if (fetch.IsCancellationRequested || _host is null || !_lyricsEnabled)
             {
                 return;
             }

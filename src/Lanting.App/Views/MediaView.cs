@@ -120,6 +120,11 @@ internal sealed class MediaView : IIslandView
 
     public bool CanShow(IslandContent content) => content.Payload is NowPlaying;
 
+    public void SetCompactOnScreen(bool onScreen) => _visualizer.SetOnScreen(onScreen);
+
+    /// <summary>Dari pengaturan: visualizer bergerak atau tidak.</summary>
+    public void SetVisualizerEnabled(bool enabled) => _visualizer.SetEnabled(enabled);
+
     public void Show(IslandContent content)
     {
         if (content.Payload is not NowPlaying song)
