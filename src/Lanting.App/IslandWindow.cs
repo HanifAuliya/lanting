@@ -65,8 +65,8 @@ internal sealed partial class IslandWindow : Window
 
         var initial = IslandShape.For(_stateMachine.State);
         _animator = new PillAnimator(_pill, initial);
-        PillAnimator.SetOpacity(_expandedHost, _stateMachine.State == IslandState.Expanded ? 1f : 0f);
-        PillAnimator.SetOpacity(_compactHost, _stateMachine.State == IslandState.Expanded ? 0f : 1f);
+        PillAnimator.SetRevealed(_expandedHost, _stateMachine.State == IslandState.Expanded);
+        PillAnimator.SetRevealed(_compactHost, _stateMachine.State != IslandState.Expanded);
         _chrome.Place(IslandShape.Max.Width, IslandShape.Max.Height, TopMargin);
         SetHitShape(initial);
         _chrome.SetVisible(_stateMachine.State != IslandState.Hidden);
@@ -99,6 +99,7 @@ internal sealed partial class IslandWindow : Window
             _compactHost.Children.Add(view.Compact);
             _expandedHost.Children.Add(view.Expanded);
             _activeView = view;
+            Motion.Pop(view.Compact, view.Expanded);
         }
 
         if (content is not null)
@@ -138,8 +139,8 @@ internal sealed partial class IslandWindow : Window
 
         _chrome.SetVisible(true);
         _animator.AnimateTo(target);
-        _animator.Fade(_expandedHost, state == IslandState.Expanded);
-        _animator.Fade(_compactHost, state != IslandState.Expanded);
+        _animator.Reveal(_expandedHost, state == IslandState.Expanded);
+        _animator.Reveal(_compactHost, state != IslandState.Expanded);
     }
 
     private void SetHitShape(IslandShape shape)

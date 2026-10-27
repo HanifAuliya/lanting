@@ -11,8 +11,8 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
 | Milestone | Isi | Status |
 | --- | --- | --- |
 | 1. Fondasi | Struktur proyek, window pil, animasi dasar, CI | selesai |
-| 2. Media | Spotify / YouTube Music lewat SMTC, kontrol lagu | sedang dikerjakan |
-| 3. Animasi polish | Spring, crossfade, visualizer | belum |
+| 2. Media | Spotify / YouTube Music lewat SMTC, kontrol lagu | selesai |
+| 3. Animasi polish | Spring, crossfade, visualizer | selesai |
 | 4. Lirik | Lirik sinkron dari LRCLIB | belum |
 | 5. Baterai | Notifikasi baterai keyboard & mouse Bluetooth | belum |
 | 6. Rilis pertama | Settings, tray, auto-start, installer | belum |
