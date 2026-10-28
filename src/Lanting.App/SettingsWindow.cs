@@ -5,6 +5,7 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Windows.UI;
 using WinUIEx;
 
 namespace Lanting.App;
@@ -15,6 +16,14 @@ namespace Lanting.App;
 /// </summary>
 internal sealed partial class SettingsWindow : Window
 {
+    // Warna kartu Fluent (CardBackgroundFillColorDefault / CardStrokeColorDefault) untuk tema gelap dan terang.
+    // Sengaja ditulis sendiri: di build Release, Application.Current.Resources["CardBackground..."] tidak ketemu
+    // dan membuat aplikasi crash saat Pengaturan dibuka (build Debug tidak terkena).
+    private static readonly Color CardDark = Color.FromArgb(0x0D, 0xFF, 0xFF, 0xFF);
+    private static readonly Color CardLight = Color.FromArgb(0xB3, 0xFF, 0xFF, 0xFF);
+    private static readonly Color CardStrokeDark = Color.FromArgb(0x19, 0x00, 0x00, 0x00);
+    private static readonly Color CardStrokeLight = Color.FromArgb(0x0F, 0x00, 0x00, 0x00);
+
     private readonly SettingsStore _store;
 
     public SettingsWindow(SettingsStore store)
@@ -120,6 +129,8 @@ internal sealed partial class SettingsWindow : Window
         return Row(title, description, toggle);
     }
 
+    private static bool Dark => Application.Current.RequestedTheme == ApplicationTheme.Dark;
+
     // Satu baris pengaturan: judul dan penjelasan di kiri, kontrol di kanan, dalam kartu.
     private static Border Row(string title, string description, FrameworkElement control)
     {
@@ -140,8 +151,8 @@ internal sealed partial class SettingsWindow : Window
             Child = grid,
             Padding = new Thickness(16, 12, 16, 12),
             CornerRadius = new CornerRadius(6),
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+            Background = new SolidColorBrush(Dark ? CardDark : CardLight),
+            BorderBrush = new SolidColorBrush(Dark ? CardStrokeDark : CardStrokeLight),
             BorderThickness = new Thickness(1),
         };
     }
