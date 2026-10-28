@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Catatan untuk asisten AI di VS Code (hanya di laptop, tidak di-upload)
+CLAUDE.md
