@@ -12,8 +12,8 @@ internal readonly record struct IslandShape(double Width, double Height, double 
     public static readonly IslandShape Compact = new(200, 34, 16);
     public static readonly IslandShape Notification = new(360, 64, 26);
 
-    /// <summary>Dashboard: baris menu di atas, lalu satu halaman (musik, cuaca, kontrol, atau aplikasi).</summary>
-    public static readonly IslandShape Expanded = new(480, 218, 30);
+    /// <summary>Dashboard: baris menu di atas, lalu satu halaman (musik, cuaca, kontrol, perangkat, atau aplikasi).</summary>
+    public static readonly IslandShape Expanded = new(560, 218, 30);
 
     /// <summary>
     /// Spring sedikit melewati ukuran target sebelum kembali; selama animasi, window menyediakan ruang sebesar ini

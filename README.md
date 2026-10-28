@@ -24,6 +24,7 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
   - **Musik**: gambar album dengan cahaya warnanya, judul, lirik, tombol sebelumnya / putar / berikutnya.
   - **Cuaca**: cuaca saat ini, tanggal, dan seberapa jauh hari ini sudah berjalan.
   - **Kontrol**: Wi-Fi, Bluetooth, suara, mikrofon, layar tetap nyala, mode gelap.
+  - **Perangkat**: keyboard, mouse, dan perangkat Bluetooth yang tersambung (dongle, Bluetooth, atau kabel) dengan sisa baterainya, plus pengaturan notifikasi baterai. Baterai hanya tampil kalau perangkatnya melaporkan ke Windows; biasanya perangkat Bluetooth bisa, banyak dongle 2.4 GHz tidak.
   - **Aplikasi**: File Explorer, Unduhan, Kalkulator, Notepad, Task Manager, Setelan Windows.
   - Tombol ⚙️ untuk Pengaturan.
 - **Mengikuti tema Windows**: terang atau gelap, agak transparan, dengan warna aksen Windows. Bisa diganti ke solid atau hitam pekat di Pengaturan.

@@ -87,6 +87,7 @@ internal sealed class SettingsApplier : IDisposable
         _battery.UpdateOptions(new BatteryOptions
         {
             Enabled = settings.BatteryNotifications,
+            ConnectionNotices = settings.ConnectionNotifications,
             LowPercent = low,
             CriticalPercent = Math.Min(10, low / 2),
             RearmPercent = low + 10,

@@ -9,7 +9,7 @@ namespace Lanting.App.Views.Dashboard;
 internal static class DashboardStyle
 {
     /// <summary>Lebar dan tinggi area halaman (di bawah baris menu).</summary>
-    public const double PageWidth = 448;
+    public const double PageWidth = 528;
 
     public const double PageHeight = 148;
 

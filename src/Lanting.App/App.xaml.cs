@@ -139,6 +139,7 @@ public partial class App : Application
         services.AddSingleton<BatteryModule>();
         services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<BatteryModule>());
         services.AddSingleton<IIslandView, BatteryView>();
+        services.AddSingleton<InputDeviceWatcher>();
 
         // Dashboard (isi island saat dibuka).
         services.AddSingleton(sp => new WeatherService(

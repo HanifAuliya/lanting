@@ -1,6 +1,9 @@
 using System.Numerics;
+using Lanting.App.Battery;
 using Lanting.App.QuickToggles;
+using Lanting.Core.Battery;
 using Lanting.Core.Island;
+using Lanting.Core.Settings;
 using Lanting.Core.Weather;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
@@ -11,7 +14,7 @@ using static Lanting.App.Views.Dashboard.DashboardStyle;
 namespace Lanting.App.Views.Dashboard;
 
 /// <summary>
-/// Isi island saat dibuka (hover). Baris atas: jam, menu (Musik, Cuaca, Kontrol, Aplikasi), dan tombol Pengaturan.
+/// Isi island saat dibuka (hover). Baris atas: jam, menu (Musik, Cuaca, Kontrol, Perangkat, Aplikasi), dan tombol Pengaturan.
 /// Di bawahnya satu halaman saja, sesuai menu yang dipilih. Berukuran <see cref="Shell.IslandShape.Expanded"/>.
 /// </summary>
 internal sealed class DashboardView
@@ -29,18 +32,28 @@ internal sealed class DashboardView
     private readonly Border _highlight;
     private Tab? _selected;
 
-    public DashboardView(IslandTheme theme, MediaView media, WeatherService weather, IEnumerable<IQuickToggle> toggles, ClockTicker clock)
+    public DashboardView(
+        IslandTheme theme,
+        MediaView media,
+        WeatherService weather,
+        IEnumerable<IQuickToggle> toggles,
+        BatteryModule battery,
+        InputDeviceWatcher inputs,
+        SettingsStore settings,
+        ClockTicker clock)
     {
         _theme = theme;
         _media = media;
         _weather = new WeatherPage(theme, weather);
         _toggles = new TogglesPage(theme, toggles);
         var apps = new AppsPage(theme);
+        var devices = new DevicesPage(theme, battery, inputs, settings);
 
         var pages = new Grid { Width = PageWidth, Height = PageHeight };
         _tabs.Add(new Tab("Musik", "\uEC4F", media.Page));
         _tabs.Add(new Tab("Cuaca", "\uE753", _weather.Root, _weather.Refresh));
         _tabs.Add(new Tab("Kontrol", "\uE9E9", _toggles.Root, _toggles.Refresh));
+        _tabs.Add(new Tab("Perangkat", "\uE772", devices.Root, devices.Refresh));
         _tabs.Add(new Tab("Aplikasi", "\uE71D", apps.Root));
 
         // Menu: tombol-tombol sama lebar, dengan sorotan yang bergeser ke menu yang dipilih.
@@ -76,14 +89,14 @@ internal sealed class DashboardView
         _time.VerticalAlignment = VerticalAlignment.Center;
         _time.Margin = new Thickness(4, 0, 0, 0);
 
-        var settings = RoundButton(theme, "\uE713", "Pengaturan", 30, 14);
-        settings.HorizontalAlignment = HorizontalAlignment.Right;
-        settings.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+        var settingsButton = RoundButton(theme, "\uE713", "Pengaturan", 30, 14);
+        settingsButton.HorizontalAlignment = HorizontalAlignment.Right;
+        settingsButton.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
 
         var header = new Grid { Width = PageWidth };
         header.Children.Add(_time);
         header.Children.Add(menu);
-        header.Children.Add(settings);
+        header.Children.Add(settingsButton);
 
         var root = new StackPanel { Margin = new Thickness(0, 10, 0, 0), Spacing = 12, HorizontalAlignment = HorizontalAlignment.Center };
         root.Children.Add(header);

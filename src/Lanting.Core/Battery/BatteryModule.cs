@@ -6,8 +6,11 @@ namespace Lanting.Core.Battery;
 /// <summary>Batas baterai untuk pemberitahuan.</summary>
 public sealed record BatteryOptions
 {
-    /// <summary>Pemberitahuan baterai aktif.</summary>
+    /// <summary>Pemberitahuan baterai lemah dan kritis aktif.</summary>
     public bool Enabled { get; init; } = true;
+
+    /// <summary>Pemberitahuan perangkat tersambung dan terputus aktif.</summary>
+    public bool ConnectionNotices { get; init; } = true;
 
     /// <summary>Di bawah atau sama dengan ini: "baterai lemah".</summary>
     public int LowPercent { get; init; } = 20;
@@ -55,7 +58,10 @@ public sealed class BatteryModule : IIslandModule
         }
     }
 
-    /// <summary>Daftar perangkat yang diketahui saat ini, misalnya untuk log.</summary>
+    /// <summary>Daftar perangkat (atau baterainya) berubah. Bisa dari thread mana pun.</summary>
+    public event EventHandler? DevicesChanged;
+
+    /// <summary>Perangkat yang melaporkan baterai, misalnya untuk halaman Perangkat.</summary>
     public IReadOnlyList<BatteryDevice> Devices
     {
         get
@@ -157,11 +163,16 @@ public sealed class BatteryModule : IIslandModule
                 }
             }
 
-            if (notice is { } kind && _options.Enabled)
+            var allowed = notice is BatteryNoticeKind.Connected or BatteryNoticeKind.Disconnected
+                ? _options.ConnectionNotices
+                : _options.Enabled;
+            if (notice is { } kind && allowed)
             {
                 _host.Show(Content(new BatteryNotice(device, kind)));
             }
         }
+
+        DevicesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnRemoved(object? sender, string id)
@@ -170,6 +181,8 @@ public sealed class BatteryModule : IIslandModule
         {
             _devices.Remove(id);
         }
+
+        DevicesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private static IslandContent Content(BatteryNotice notice)

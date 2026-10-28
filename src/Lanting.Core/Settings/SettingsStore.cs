@@ -23,8 +23,11 @@ public sealed record LantingSettings
     /// <summary>Visualizer bergerak saat lagu diputar (sekitar 8% satu core CPU).</summary>
     public bool ShowVisualizer { get; init; } = true;
 
-    /// <summary>Pemberitahuan baterai perangkat Bluetooth.</summary>
+    /// <summary>Pemberitahuan baterai lemah dan hampir habis.</summary>
     public bool BatteryNotifications { get; init; } = true;
+
+    /// <summary>Pemberitahuan perangkat tersambung dan terputus.</summary>
+    public bool ConnectionNotifications { get; init; } = true;
 
     /// <summary>Batas "baterai lemah" dalam persen.</summary>
     public int LowBatteryPercent { get; init; } = 20;

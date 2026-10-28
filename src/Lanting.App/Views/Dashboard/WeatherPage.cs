@@ -10,7 +10,8 @@ namespace Lanting.App.Views.Dashboard;
 /// <summary>Halaman Cuaca: cuaca saat ini di kiri, tanggal dan seberapa jauh hari ini sudah berjalan di kanan.</summary>
 internal sealed class WeatherPage
 {
-    private const double BarWidth = 191;
+    // Setengah halaman dikurangi jarak antarkartu dan padding kartu.
+    private const double BarWidth = ((PageWidth - 10) / 2) - 28;
 
     private readonly WeatherService _weather;
     private readonly TextBlock _place;

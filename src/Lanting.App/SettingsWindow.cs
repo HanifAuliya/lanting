@@ -94,12 +94,17 @@ internal sealed partial class SettingsWindow : Window
             settings.ShowWeather,
             on => _store.Update(s => s with { ShowWeather = on })));
 
-        page.Children.Add(Section("Baterai Bluetooth"));
+        page.Children.Add(Section("Baterai perangkat"));
         page.Children.Add(Toggle(
-            "Pemberitahuan baterai",
-            "Keyboard, mouse, dan perangkat Bluetooth lain: tersambung, terputus, dan baterai lemah.",
+            "Baterai lemah dan hampir habis",
+            "Untuk perangkat yang melaporkan baterai ke Windows (biasanya Bluetooth). Banyak dongle 2.4 GHz tidak melaporkannya.",
             settings.BatteryNotifications,
             on => _store.Update(s => s with { BatteryNotifications = on })));
+        page.Children.Add(Toggle(
+            "Tersambung dan terputus",
+            "Pemberitahuan singkat saat perangkat Bluetooth tersambung atau terputus.",
+            settings.ConnectionNotifications,
+            on => _store.Update(s => s with { ConnectionNotifications = on })));
 
         var threshold = new ComboBox { MinWidth = 100, VerticalAlignment = VerticalAlignment.Center };
         foreach (var percent in LantingSettings.LowBatteryChoices)
