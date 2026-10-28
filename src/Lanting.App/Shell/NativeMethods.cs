@@ -55,6 +55,11 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool DeleteObject(IntPtr handle);
 
+    internal const int RGN_OR = 2;
+
+    [DllImport("gdi32.dll")]
+    internal static extern int CombineRgn(IntPtr destination, IntPtr source1, IntPtr source2, int mode);
+
     [DllImport("user32.dll")]
     internal static extern int SetWindowRgn(IntPtr hwnd, IntPtr region, [MarshalAs(UnmanagedType.Bool)] bool redraw);
 

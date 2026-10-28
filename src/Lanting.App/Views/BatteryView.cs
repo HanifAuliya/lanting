@@ -1,6 +1,5 @@
 using Lanting.Core.Battery;
 using Lanting.Core.Island;
-using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -11,32 +10,33 @@ namespace Lanting.App.Views;
 
 /// <summary>
 /// Pemberitahuan baterai: tersambung/terputus tampil sebentar di pil kecil,
-/// baterai lemah/kritis tampil di pil notifikasi yang lebih besar.
+/// baterai lemah/kritis tampil di pil notifikasi yang lebih besar. Saat di-hover, dashboard yang tampil.
 /// </summary>
 internal sealed class BatteryView : IIslandView
 {
-    private static readonly Color Accent = Color.FromArgb(255, 0x2D, 0xD4, 0xBF);
-    private static readonly Color Amber = Color.FromArgb(255, 0xFB, 0xBF, 0x24);
-    private static readonly Color Red = Color.FromArgb(255, 0xF8, 0x71, 0x71);
-    private static readonly Color Muted = Color.FromArgb(255, 0xA0, 0xA0, 0xA0);
+    // Kuning dan merah: versi terang untuk latar gelap, versi gelap untuk latar terang.
+    private static readonly (Color Dark, Color Light) Amber = (Color.FromArgb(255, 0xFB, 0xBF, 0x24), Color.FromArgb(255, 0xB4, 0x53, 0x09));
+    private static readonly (Color Dark, Color Light) Red = (Color.FromArgb(255, 0xF8, 0x71, 0x71), Color.FromArgb(255, 0xDC, 0x26, 0x26));
 
+    private readonly IslandTheme _theme;
     private readonly FontIcon _compactDevice = Icon(14);
-    private readonly TextBlock _compactName = Text(12, Colors.White);
+    private readonly TextBlock _compactName;
     private readonly FontIcon _compactBattery = Icon(14);
-    private readonly TextBlock _compactPercent = Text(12, Colors.White);
+    private readonly TextBlock _compactPercent;
 
     private readonly FontIcon _noticeDevice = Icon(20);
-    private readonly TextBlock _noticeTitle = Text(14, Colors.White);
-    private readonly TextBlock _noticeDetail = Text(12, Muted);
+    private readonly TextBlock _noticeTitle;
+    private readonly TextBlock _noticeDetail;
     private readonly FontIcon _noticeBattery = Icon(22);
 
-    private readonly FontIcon _expandedDevice = Icon(28);
-    private readonly TextBlock _expandedName = Text(16, Colors.White);
-    private readonly TextBlock _expandedStatus = Text(13, Muted);
-    private readonly TextBlock _expandedPercent = Text(34, Colors.White);
-
-    public BatteryView()
+    public BatteryView(IslandTheme theme)
     {
+        _theme = theme;
+        _compactName = Text(12, theme.Primary);
+        _compactPercent = Text(12, theme.Primary);
+        _noticeTitle = Text(14, theme.Primary);
+        _noticeDetail = Text(12, theme.Secondary);
+
         // Pil kecil: [ikon] nama ... [baterai] 80%
         var compact = new Grid { Margin = new Thickness(14, 0, 14, 0), ColumnSpacing = 8 };
         compact.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -62,26 +62,9 @@ internal sealed class BatteryView : IIslandView
         Place(notice, text, 1);
         Place(notice, _noticeBattery, 2);
         Notification = notice;
-
-        // Pil besar (saat di-hover): ikon + nama + status, persen besar di kanan.
-        var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 4 };
-        _expandedName.FontWeight = FontWeights.SemiBold;
-        info.Children.Add(_expandedName);
-        info.Children.Add(_expandedStatus);
-        _expandedPercent.FontWeight = FontWeights.SemiBold;
-        var expanded = new Grid { Margin = new Thickness(28, 0, 32, 0), ColumnSpacing = 16 };
-        expanded.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        expanded.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        expanded.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Place(expanded, _expandedDevice, 0);
-        Place(expanded, info, 1);
-        Place(expanded, _expandedPercent, 2);
-        Expanded = expanded;
     }
 
     public UIElement Compact { get; }
-
-    public UIElement Expanded { get; }
 
     public UIElement? Notification { get; }
 
@@ -97,14 +80,13 @@ internal sealed class BatteryView : IIslandView
         }
 
         var device = notice.Device;
-        var color = notice.Kind switch
+        var brush = notice.Kind switch
         {
-            BatteryNoticeKind.Critical => Red,
-            BatteryNoticeKind.Low => Amber,
-            BatteryNoticeKind.Connected => Accent,
-            _ => Muted,
+            BatteryNoticeKind.Critical => new SolidColorBrush(_theme.IsDark ? Red.Dark : Red.Light),
+            BatteryNoticeKind.Low => new SolidColorBrush(_theme.IsDark ? Amber.Dark : Amber.Light),
+            BatteryNoticeKind.Connected => _theme.Accent,
+            _ => _theme.Secondary,
         };
-        var brush = new SolidColorBrush(color);
         var deviceGlyph = DeviceGlyph(device.Kind);
         var batteryGlyph = BatteryGlyph(device.Percent);
         var percent = device.Percent is { } p ? $"{p}%" : string.Empty;
@@ -130,13 +112,6 @@ internal sealed class BatteryView : IIslandView
         _noticeBattery.Glyph = batteryGlyph;
         _noticeBattery.Foreground = brush;
 
-        _expandedDevice.Glyph = deviceGlyph;
-        _expandedDevice.Foreground = brush;
-        _expandedName.Text = device.Name;
-        _expandedStatus.Text = status;
-        _expandedPercent.Text = percent;
-        _expandedPercent.Foreground = brush;
-
         Motion.Pop(_compactName, _compactPercent);
         Motion.Pop(_noticeTitle, _noticeDetail);
     }
@@ -158,10 +133,10 @@ internal sealed class BatteryView : IIslandView
 
     private static FontIcon Icon(double size) => new() { FontSize = size, VerticalAlignment = VerticalAlignment.Center };
 
-    private static TextBlock Text(double size, Color color) => new()
+    private static TextBlock Text(double size, Brush brush) => new()
     {
         FontSize = size,
-        Foreground = new SolidColorBrush(color),
+        Foreground = brush,
         TextTrimming = TextTrimming.CharacterEllipsis,
         TextWrapping = TextWrapping.NoWrap,
         MaxLines = 1,

@@ -19,17 +19,26 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
 
 ## Fitur
 
-- **Lagu yang sedang diputar** (Spotify, YouTube Music, browser, Media Player): gambar album, judul, visualizer. Arahkan kursor ke pil untuk tombol sebelumnya / putar / berikutnya.
+- **Menempel di atas layar**: saat tertutup menampilkan jam, atau lagu yang sedang diputar.
+- **Dashboard** saat kursor diam sebentar di atas pil. Di atasnya ada menu, dan setiap menu membuka satu halaman:
+  - **Musik**: gambar album dengan cahaya warnanya, judul, lirik, tombol sebelumnya / putar / berikutnya.
+  - **Cuaca**: cuaca saat ini, tanggal, dan seberapa jauh hari ini sudah berjalan.
+  - **Kontrol**: Wi-Fi, Bluetooth, suara, mikrofon, layar tetap nyala, mode gelap.
+  - **Perangkat**: keyboard, mouse, dan perangkat Bluetooth yang tersambung (dongle, Bluetooth, atau kabel) dengan sisa baterainya, plus pengaturan notifikasi baterai. Baterai hanya tampil kalau perangkatnya melaporkan ke Windows; biasanya perangkat Bluetooth bisa, banyak dongle 2.4 GHz tidak.
+  - **Aplikasi**: File Explorer, Unduhan, Kalkulator, Notepad, Task Manager, Setelan Windows.
+  - Tombol ⚙️ untuk Pengaturan.
+- **Mengikuti tema Windows**: terang atau gelap, agak transparan, dengan warna aksen Windows. Bisa diganti ke solid atau hitam pekat di Pengaturan.
+- **Lagu yang sedang diputar** (Spotify, YouTube Music, browser, Media Player): gambar album, judul, visualizer.
 - **Lirik sinkron** dari LRCLIB, langsung di pil.
 - **Baterai Bluetooth**: keyboard/mouse tersambung, terputus, dan baterai lemah.
 - **Sembunyi otomatis** saat game, video, atau presentasi layar penuh.
-- **Pengaturan** lewat ikon di system tray atau klik kanan pil.
+- **Pengaturan** lewat tombol ⚙️ di dashboard, ikon di system tray, atau klik kanan pil.
 
 ## Pasang
 
 1. Buka halaman [Releases](https://github.com/HanifAuliya/lanting/releases), lalu unduh `Lanting-Setup-x.y.z.exe`.
 2. Jalankan installer. Tidak perlu hak admin.
-3. Lanting muncul sebagai pil hitam di tengah atas layar, ditambah ikon di system tray.
+3. Lanting muncul sebagai pil kecil berisi jam di tengah atas layar, ditambah ikon di system tray.
 
 Kalau Windows SmartScreen memperingatkan ("Windows protected your PC"), klik **More info** lalu **Run anyway**. Peringatan ini muncul karena installernya belum ditandatangani sertifikat berbayar.
 
@@ -93,6 +102,9 @@ Aturan arsitektur:
 
 ## Privasi
 
-Untuk mencari lirik, judul dan artis lagu yang sedang diputar dikirim ke [LRCLIB](https://lrclib.net). Tidak ada data lain yang dikirim. Fitur lirik bisa dimatikan di Pengaturan.
+- Untuk mencari lirik, judul dan artis lagu yang sedang diputar dikirim ke [LRCLIB](https://lrclib.net).
+- Untuk cuaca, lokasi kira-kira dicari dari alamat internet lewat [ipwho.is](https://ipwho.is), lalu cuacanya diambil dari [Open-Meteo](https://open-meteo.com). Paling sering 30 menit sekali, dan hanya saat dashboard dibuka.
+
+Tidak ada data lain yang dikirim. Lirik dan cuaca bisa dimatikan di Pengaturan.
 
 Pengaturan disimpan di `%LOCALAPPDATA%\Lanting\settings.json`, log di `%LOCALAPPDATA%\Lanting\lanting.log`.

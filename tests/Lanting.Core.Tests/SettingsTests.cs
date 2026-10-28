@@ -58,12 +58,13 @@ public sealed class SettingsTests : IDisposable
     public void Unknown_fields_are_ignored_and_bad_values_clamped()
     {
         Directory.CreateDirectory(_folder);
-        File.WriteAllText(SettingsPath, """{ "ShowVisualizer": false, "FiturLama": 1, "LowBatteryPercent": 400 }""");
+        File.WriteAllText(SettingsPath, """{ "ShowVisualizer": false, "FiturLama": 1, "LowBatteryPercent": 400, "Background": 9 }""");
 
         var settings = new SettingsStore(SettingsPath).Current;
 
         Assert.False(settings.ShowVisualizer);
         Assert.Equal(50, settings.LowBatteryPercent);
+        Assert.Equal(IslandBackground.Translucent, settings.Background);
     }
 
     [Fact]

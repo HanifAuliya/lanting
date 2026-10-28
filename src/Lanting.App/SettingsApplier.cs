@@ -1,5 +1,6 @@
 using Lanting.App.Shell;
 using Lanting.App.Views;
+using Lanting.App.Views.Dashboard;
 using Lanting.Core.Battery;
 using Lanting.Core.Island;
 using Lanting.Core.Media;
@@ -19,12 +20,23 @@ internal sealed class SettingsApplier : IDisposable
     private readonly MediaModule _media;
     private readonly MediaView _mediaView;
     private readonly BatteryModule _battery;
+    private readonly DashboardView _dashboard;
+    private readonly IslandTheme _theme;
     private readonly DispatcherQueue _dispatcher;
     private FullscreenWatcher? _fullscreen;
     private bool _fullscreenNow;
 
-    public SettingsApplier(SettingsStore store, IslandStateMachine stateMachine, MediaModule media, MediaView mediaView, BatteryModule battery)
+    public SettingsApplier(
+        SettingsStore store,
+        IslandStateMachine stateMachine,
+        MediaModule media,
+        MediaView mediaView,
+        BatteryModule battery,
+        DashboardView dashboard,
+        IslandTheme theme)
     {
+        _dashboard = dashboard;
+        _theme = theme;
         _store = store;
         _stateMachine = stateMachine;
         _media = media;
@@ -67,12 +79,15 @@ internal sealed class SettingsApplier : IDisposable
         _stateMachine.UpdateOptions(new IslandOptions { ShowWhenIdle = settings.ShowWhenIdle });
         _stateMachine.OnFullscreenChanged(settings.HideInFullscreen && _fullscreenNow);
         _media.LyricsEnabled = settings.ShowLyrics;
+        _dashboard.SetWeatherEnabled(settings.ShowWeather);
+        _theme.SetBackground(settings.Background);
         _mediaView.SetVisualizerEnabled(settings.ShowVisualizer);
 
         var low = settings.LowBatteryPercent;
         _battery.UpdateOptions(new BatteryOptions
         {
             Enabled = settings.BatteryNotifications,
+            ConnectionNotices = settings.ConnectionNotifications,
             LowPercent = low,
             CriticalPercent = Math.Min(10, low / 2),
             RearmPercent = low + 10,

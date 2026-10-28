@@ -1,23 +1,26 @@
 using System.Runtime.InteropServices.WindowsRuntime;
 using Lanting.App.Shell;
+using Lanting.App.Views.Dashboard;
 using Lanting.Core.Island;
 using Lanting.Core.Media;
-using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Foundation;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 using Windows.UI;
+using static Lanting.App.Views.Dashboard.DashboardStyle;
 
 namespace Lanting.App.Views;
 
 /// <summary>
-/// Tampilan lagu: pil kecil berisi gambar album, judul, dan visualizer;
-/// pil besar berisi gambar, judul, artis, nama pemutar, dan tombol sebelumnya / putar / berikutnya.
+/// Tampilan lagu: pil kecil berisi gambar album, judul (atau baris lirik), dan visualizer;
+/// <see cref="Page"/> (halaman Musik di dashboard) berisi gambar besar, judul, artis, lirik/nama pemutar,
+/// dan tombol sebelumnya / putar / berikutnya, di atas cahaya lembut berwarna gambar albumnya.
 /// </summary>
 internal sealed class MediaView : IIslandView
 {
@@ -32,34 +35,37 @@ internal sealed class MediaView : IIslandView
     private const double LyricsCompactWidth = 340;
 
     private static readonly Color DefaultAccent = Color.FromArgb(255, 0x2D, 0xD4, 0xBF);
-    private static readonly Color Muted = Color.FromArgb(255, 0xA0, 0xA0, 0xA0);
-    private static readonly Color Dim = Color.FromArgb(255, 0x70, 0x70, 0x70);
-    private static readonly Color ArtBackground = Color.FromArgb(255, 0x26, 0x26, 0x26);
 
     private readonly IMediaControls _controls;
+    private readonly IslandTheme _theme;
     private readonly Art _compactArt;
-    private readonly Art _expandedArt;
+    private readonly Art _pageArt;
     private readonly TextBlock _compactTitle;
     private readonly Visualizer _visualizer;
     private readonly TextBlock _title;
     private readonly TextBlock _artist;
-    private readonly TextBlock _app;
+    private readonly TextBlock _subline;
     private readonly Button _previous;
     private readonly Button _playPause;
     private readonly FontIcon _playPauseIcon;
     private readonly Button _next;
-    private readonly SolidColorBrush _dimBrush = new(Dim);
-    private readonly SolidColorBrush _accentBrush = new(DefaultAccent);
+    private readonly SolidColorBrush _lyricBrush = new(DefaultAccent);
+    private readonly GradientStop _glowStart = new() { Offset = 0 };
+    private readonly GradientStop _glowEnd = new() { Offset = 1 };
+    private readonly FrameworkElement _songPanel;
+    private readonly FrameworkElement _emptyPanel;
+    private Color _artColor = DefaultAccent;
     private NowPlaying? _song;
     private int _thumbnailVersion;
 
-    public MediaView(IMediaControls controls)
+    public MediaView(IMediaControls controls, IslandTheme theme)
     {
         _controls = controls;
+        _theme = theme;
 
-        // Pil kecil (200x34): [gambar] judul ... [visualizer]
-        _compactArt = new Art(22, 6);
-        _compactTitle = Text(12, Colors.White);
+        // Pil kecil: [gambar] judul ... [visualizer]
+        _compactArt = new Art(theme, 22, 6);
+        _compactTitle = Text(theme.Primary, 12);
         _compactTitle.VerticalAlignment = VerticalAlignment.Center;
         _visualizer = new Visualizer();
 
@@ -72,49 +78,87 @@ internal sealed class MediaView : IIslandView
         Place(compact, _visualizer.Root, 0, 2);
         Compact = compact;
 
-        // Pil besar (400x160).
-        _expandedArt = new Art(72, 14);
-        _title = Text(16, Colors.White);
-        _title.FontWeight = FontWeights.SemiBold;
-        _artist = Text(13, Muted);
-        _app = Text(12, Dim);
-        _app.Margin = new Thickness(0, 2, 0, 0);
+        // Halaman Musik: [gambar besar] judul / artis / lirik ... tombol.
+        _pageArt = new Art(theme, PageHeight - 28, 14);
+        _title = Text(theme.Primary, 16, bold: true);
+        _artist = Text(theme.Secondary, 13);
+        _subline = Text(_lyricBrush, 12);
+        _subline.Margin = new Thickness(0, 4, 0, 0);
 
-        var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
+        var info = new StackPanel { Spacing = 1 };
         info.Children.Add(_title);
         info.Children.Add(_artist);
-        info.Children.Add(_app);
+        info.Children.Add(_subline);
 
-        _playPauseIcon = new FontIcon { Glyph = PauseGlyph, FontSize = 20 };
-        _previous = ControlButton(new FontIcon { Glyph = PreviousGlyph, FontSize = 16 }, "Lagu sebelumnya", () => _controls.PreviousAsync());
-        _playPause = ControlButton(_playPauseIcon, "Putar / jeda", () => _controls.PlayPauseAsync());
-        _next = ControlButton(new FontIcon { Glyph = NextGlyph, FontSize = 16 }, "Lagu berikutnya", () => _controls.NextAsync());
+        _playPauseIcon = Icon(PauseGlyph, 18);
+        _playPauseIcon.HorizontalAlignment = HorizontalAlignment.Center;
+        _previous = RoundButton(theme, PreviousGlyph, "Lagu sebelumnya", 38, 16);
+        _playPause = Pressable(_playPauseIcon, "Putar / jeda", 22, theme.Primary, theme.Secondary, theme.Tertiary, theme.Inverse);
+        _playPause.Width = 44;
+        _playPause.Height = 44;
+        _next = RoundButton(theme, NextGlyph, "Lagu berikutnya", 38, 16);
+        _previous.Click += async (_, _) => await _controls.PreviousAsync();
+        _playPause.Click += async (_, _) => await _controls.PlayPauseAsync();
+        _next.Click += async (_, _) => await _controls.NextAsync();
 
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Spacing = 12,
-        };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Bottom };
         buttons.Children.Add(_previous);
         buttons.Children.Add(_playPause);
         buttons.Children.Add(_next);
 
-        var expanded = new Grid { Margin = new Thickness(24, 18, 24, 12), ColumnSpacing = 14, RowSpacing = 6 };
-        expanded.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        expanded.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        expanded.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        expanded.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        Place(expanded, _expandedArt.Root, 0, 0);
-        Place(expanded, info, 0, 1);
-        Place(expanded, buttons, 1, 0);
-        Grid.SetColumnSpan(buttons, 2);
-        Expanded = expanded;
+        var details = new Grid();
+        details.Children.Add(info);
+        details.Children.Add(buttons);
+
+        var song = new Grid { ColumnSpacing = 16 };
+        song.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        song.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Place(song, _pageArt.Root, 0, 0);
+        Place(song, details, 0, 1);
+        _songPanel = song;
+
+        var empty = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 6 };
+        var emptyIcon = Icon(MusicGlyph, 26);
+        emptyIcon.Foreground = theme.Tertiary;
+        empty.Children.Add(emptyIcon);
+        var emptyTitle = Text(theme.Primary, 13, bold: true);
+        emptyTitle.Text = "Tidak ada lagu yang diputar";
+        emptyTitle.HorizontalAlignment = HorizontalAlignment.Center;
+        empty.Children.Add(emptyTitle);
+        var emptyHint = Text(theme.Secondary, 12);
+        emptyHint.Text = "Putar lagu di Spotify, YouTube, atau pemutar lain";
+        emptyHint.HorizontalAlignment = HorizontalAlignment.Center;
+        empty.Children.Add(emptyHint);
+        _emptyPanel = empty;
+
+        // Cahaya lembut warna gambar album, dari kiri (tempat gambar) memudar ke kanan.
+        var glow = new Border
+        {
+            CornerRadius = new CornerRadius(18),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0.5),
+                EndPoint = new Point(1, 0.5),
+                GradientStops = { _glowStart, _glowEnd },
+            },
+        };
+        var card = Card(theme, new Grid { Children = { song, empty } });
+        card.Background = null;
+        Page = new Grid
+        {
+            CornerRadius = new CornerRadius(18),
+            Background = theme.Surface,
+            Children = { glow, card },
+        };
+
+        theme.Changed += (_, _) => ApplyColor();
+        ShowEmpty();
     }
 
     public UIElement Compact { get; }
 
-    public UIElement Expanded { get; }
+    /// <summary>Halaman Musik di dashboard.</summary>
+    public FrameworkElement Page { get; }
 
     public double CompactWidth => _song?.HasLyrics == true ? LyricsCompactWidth : IslandShape.Compact.Width;
 
@@ -125,6 +169,17 @@ internal sealed class MediaView : IIslandView
     /// <summary>Dari pengaturan: visualizer bergerak atau tidak.</summary>
     public void SetVisualizerEnabled(bool enabled) => _visualizer.SetEnabled(enabled);
 
+    /// <summary>Tidak ada lagu (pemutar ditutup): halaman Musik menampilkan keadaan kosong.</summary>
+    public void ShowEmpty()
+    {
+        _song = null;
+        _songPanel.Visibility = Visibility.Collapsed;
+        _emptyPanel.Visibility = Visibility.Visible;
+        _visualizer.SetPlaying(false);
+        _artColor = DefaultAccent;
+        ApplyColor(glow: false);
+    }
+
     public void Show(IslandContent content)
     {
         if (content.Payload is not NowPlaying song)
@@ -134,6 +189,8 @@ internal sealed class MediaView : IIslandView
 
         var previous = _song;
         _song = song;
+        _songPanel.Visibility = Visibility.Visible;
+        _emptyPanel.Visibility = Visibility.Collapsed;
 
         var newTrack = previous?.Title != song.Title || previous?.Artist != song.Artist;
         if (newTrack)
@@ -151,7 +208,7 @@ internal sealed class MediaView : IIslandView
             StartupLog.Write(song.HasLyrics ? "Media: lirik tersedia." : "Media: tanpa lirik.");
         }
 
-        // Baris lirik menggantikan judul di pil kecil dan nama pemutar di pil besar.
+        // Baris lirik menggantikan judul di pil kecil dan nama pemutar di halaman Musik.
         var compactText = song.Lyric ?? song.Title;
         if (newTrack || compactText != _compactTitle.Text)
         {
@@ -160,11 +217,11 @@ internal sealed class MediaView : IIslandView
         }
 
         var subline = song.Lyric ?? song.AppName;
-        if (newTrack || subline != _app.Text)
+        if (newTrack || subline != _subline.Text)
         {
-            _app.Text = subline;
-            _app.Foreground = song.Lyric is null ? _dimBrush : _accentBrush;
-            Motion.Pop(_app);
+            _subline.Text = subline;
+            _subline.Foreground = song.Lyric is null ? _theme.Tertiary : _lyricBrush;
+            Motion.Pop(_subline);
         }
 
         _visualizer.SetPlaying(song.IsPlaying);
@@ -174,11 +231,22 @@ internal sealed class MediaView : IIslandView
         _playPause.IsEnabled = song.CanPlayPause;
         _previous.IsEnabled = song.CanPrevious;
         _next.IsEnabled = song.CanNext;
+        _previous.Opacity = song.CanPrevious ? 1 : 0.4;
+        _next.Opacity = song.CanNext ? 1 : 0.4;
 
         if (!ReferenceEquals(song.Thumbnail, previous?.Thumbnail) || previous is null)
         {
             _ = LoadThumbnailAsync(song.Thumbnail);
         }
+    }
+
+    private void ApplyColor(bool glow = true)
+    {
+        _visualizer.SetColor(_artColor);
+        _lyricBrush.Color = _theme.Readable(_artColor);
+        var alpha = (byte)(!glow ? 0 : _theme.IsDark ? 0x55 : 0x40);
+        _glowStart.Color = Color.FromArgb(alpha, _artColor.R, _artColor.G, _artColor.B);
+        _glowEnd.Color = Color.FromArgb(0, _artColor.R, _artColor.G, _artColor.B);
     }
 
     private async Task LoadThumbnailAsync(byte[]? bytes)
@@ -195,7 +263,7 @@ internal sealed class MediaView : IIslandView
 
                 // Batasi ukuran decode: gambar YouTube bisa 1280x720 dan memakan memori beberapa MB.
                 stream.Seek(0);
-                var bitmap = new BitmapImage { DecodePixelType = DecodePixelType.Logical, DecodePixelWidth = 160 };
+                var bitmap = new BitmapImage { DecodePixelType = DecodePixelType.Logical, DecodePixelWidth = 240 };
                 await bitmap.SetSourceAsync(stream);
                 image = bitmap;
 
@@ -215,10 +283,9 @@ internal sealed class MediaView : IIslandView
         }
 
         _compactArt.SetImage(image);
-        _expandedArt.SetImage(image);
-        var color = accent is { } c ? Color.FromArgb(255, c.R, c.G, c.B) : DefaultAccent;
-        _visualizer.SetColor(color);
-        _accentBrush.Color = color;
+        _pageArt.SetImage(image);
+        _artColor = accent is { } c ? Color.FromArgb(255, c.R, c.G, c.B) : DefaultAccent;
+        ApplyColor(glow: _song is not null);
     }
 
     // Gambar diperkecil jadi 24x24 piksel dulu; untuk memilih warna itu sudah cukup dan sangat murah.
@@ -233,34 +300,6 @@ internal sealed class MediaView : IIslandView
             ExifOrientationMode.IgnoreExifOrientation,
             ColorManagementMode.DoNotColorManage);
         return ArtworkColor.Pick(data.DetachPixelData());
-    }
-
-    private static TextBlock Text(double size, Color color) => new()
-    {
-        FontSize = size,
-        Foreground = new SolidColorBrush(color),
-        TextTrimming = TextTrimming.CharacterEllipsis,
-        TextWrapping = TextWrapping.NoWrap,
-        MaxLines = 1,
-    };
-
-    private static Button ControlButton(FontIcon icon, string label, Func<Task> action)
-    {
-        icon.Foreground = new SolidColorBrush(Colors.White);
-        var button = new Button
-        {
-            Content = icon,
-            Width = 44,
-            Height = 36,
-            Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(18),
-            Background = new SolidColorBrush(Colors.Transparent),
-            BorderThickness = new Thickness(0),
-        };
-        ToolTipService.SetToolTip(button, label);
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, label);
-        button.Click += async (_, _) => await action();
-        return button;
     }
 
     private static void Place(Grid grid, FrameworkElement element, int row, int column)
@@ -280,20 +319,20 @@ internal sealed class MediaView : IIslandView
         private readonly FontIcon _placeholder;
         private int _front;
 
-        public Art(double size, double cornerRadius)
+        public Art(IslandTheme theme, double size, double cornerRadius)
         {
             _placeholder = new FontIcon
             {
                 Glyph = MusicGlyph,
-                FontSize = Math.Round(size * 0.45),
-                Foreground = new SolidColorBrush(Muted),
+                FontSize = Math.Round(size * 0.4),
+                Foreground = theme.Tertiary,
             };
             var root = new Grid
             {
                 Width = size,
                 Height = size,
                 CornerRadius = new CornerRadius(cornerRadius),
-                Background = new SolidColorBrush(ArtBackground),
+                Background = theme.Control,
                 VerticalAlignment = VerticalAlignment.Center,
             };
             root.Children.Add(_placeholder);

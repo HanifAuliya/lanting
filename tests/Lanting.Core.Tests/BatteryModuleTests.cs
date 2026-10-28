@@ -105,6 +105,53 @@ public class BatteryModuleTests
         Assert.Equal(["mouse", "kb"], _host.Shown.Select(c => c.Key));
     }
 
+    [Fact]
+    public async Task Connection_notices_can_be_turned_off_separately()
+    {
+        _source.Initial = [Mouse(80, connected: false)];
+        await StartAsync(new BatteryOptions { ConnectionNotices = false });
+
+        _source.Raise(Mouse(80, connected: true));
+        _source.Raise(Mouse(15, connected: true));
+
+        Assert.Equal([BatteryNoticeKind.Low], Notices());
+    }
+
+    [Fact]
+    public async Task Device_list_changes_are_reported()
+    {
+        var module = await StartAsync();
+        var changes = 0;
+        module.DevicesChanged += (_, _) => changes++;
+
+        _source.Raise(Mouse(70, connected: true));
+
+        Assert.Equal(1, changes);
+        Assert.Equal(70, Assert.Single(module.Devices).Percent);
+    }
+
+    [Fact]
+    public void Device_list_merges_input_devices_with_battery_reports()
+    {
+        var inputs = new[]
+        {
+            new InputDevice("dongle", "2.4G Wireless Device", BatteryDeviceKind.Mouse, DeviceConnection.Wireless),
+            new InputDevice("bt-kb", "HID Keyboard", BatteryDeviceKind.Keyboard, DeviceConnection.Bluetooth),
+        };
+        var batteries = new[]
+        {
+            new BatteryDevice("bt-kb", "MX Keys", 60, true),
+            new BatteryDevice("buds", "Galaxy Buds2", 40, false),
+        };
+
+        var list = DeviceList.Merge(inputs, batteries);
+
+        Assert.Equal(["MX Keys", "2.4G Wireless Device", "Galaxy Buds2"], list.Select(d => d.Name));
+        Assert.Equal([60, null, 40], list.Select(d => d.Percent));
+        Assert.Equal([true, true, false], list.Select(d => d.Connected));
+        Assert.Equal(DeviceConnection.Bluetooth, list[2].Connection);
+    }
+
     [Theory]
     [InlineData("MX Master 3S", BatteryDeviceKind.Mouse)]
     [InlineData("Logitech Pebble Mouse 2", BatteryDeviceKind.Mouse)]
@@ -123,10 +170,11 @@ public class BatteryModuleTests
 
     private List<BatteryNoticeKind> Notices() => [.. _host.Shown.Select(c => ((BatteryNotice)c.Payload!).Kind)];
 
-    private async Task StartAsync()
+    private async Task<BatteryModule> StartAsync(BatteryOptions? options = null)
     {
-        var module = new BatteryModule(_source, new BatteryOptions());
+        var module = new BatteryModule(_source, options ?? new BatteryOptions());
         await module.StartAsync(_host, CancellationToken.None);
+        return module;
     }
 
     private sealed class FakeBatterySource : IBatterySource

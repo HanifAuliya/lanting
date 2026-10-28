@@ -13,6 +13,7 @@ public sealed class IslandStateMachine : IDisposable
     private bool _pointerOver;
     private bool _suppressed;
     private ITimer? _collapseTimer;
+    private ITimer? _expandTimer;
     private IslandState _state;
 
     public IslandStateMachine(IslandOptions options, TimeProvider time)
@@ -49,17 +50,60 @@ public sealed class IslandStateMachine : IDisposable
 
     public void OnContentChanged(IslandContent? content) => Update(() => _content = content);
 
-    public void OnPointerEntered() => Update(() =>
+    /// <summary>
+    /// Mouse masuk ke pil. Pil baru terbuka setelah mouse diam di sana selama <see cref="IslandOptions.ExpandDelay"/>,
+    /// supaya tidak terbuka saat mouse sekadar lewat (misalnya menuju tab browser di tepi atas layar).
+    /// </summary>
+    public void OnPointerEntered()
     {
-        _collapseTimer?.Dispose();
-        _collapseTimer = null;
-        _pointerOver = true;
-    });
+        lock (_gate)
+        {
+            _collapseTimer?.Dispose();
+            _collapseTimer = null;
+            if (_pointerOver || _expandTimer is not null)
+            {
+                return;
+            }
+
+            if (_options.ExpandDelay > TimeSpan.Zero)
+            {
+                ITimer? timer = null;
+                timer = _time.CreateTimer(
+                    _ => Update(() =>
+                    {
+                        // Timer lama yang terlambat berbunyi setelah dibatalkan tidak boleh membuka pil.
+                        if (!ReferenceEquals(_expandTimer, timer))
+                        {
+                            return;
+                        }
+
+                        timer?.Dispose();
+                        _expandTimer = null;
+                        _pointerOver = true;
+                    }),
+                    null,
+                    _options.ExpandDelay,
+                    Timeout.InfiniteTimeSpan);
+                _expandTimer = timer;
+                return;
+            }
+        }
+
+        Update(() => _pointerOver = true);
+    }
 
     public void OnPointerExited()
     {
         lock (_gate)
         {
+            // Belum sempat terbuka: cukup batalkan.
+            if (_expandTimer is not null)
+            {
+                _expandTimer.Dispose();
+                _expandTimer = null;
+                return;
+            }
+
             _collapseTimer?.Dispose();
             _collapseTimer = _time.CreateTimer(
                 _ => Update(() => _pointerOver = false),
@@ -81,6 +125,8 @@ public sealed class IslandStateMachine : IDisposable
         {
             _collapseTimer?.Dispose();
             _collapseTimer = null;
+            _expandTimer?.Dispose();
+            _expandTimer = null;
         }
     }
 

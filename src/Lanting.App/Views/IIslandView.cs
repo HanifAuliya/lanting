@@ -5,7 +5,8 @@ namespace Lanting.App.Views;
 
 /// <summary>
 /// Tampilan untuk satu jenis konten (misalnya lagu). <see cref="IslandWindow"/> memilih view pertama yang
-/// <see cref="CanShow"/>, lalu menaruh <see cref="Compact"/> dan <see cref="Expanded"/> di dalam pil.
+/// <see cref="CanShow"/>, lalu menaruh <see cref="Compact"/> (dan <see cref="Notification"/>) di dalam pil.
+/// Pil besar selalu berisi dashboard (<see cref="Dashboard.DashboardView"/>), bukan isi view.
 /// Semua anggota dipanggil di thread UI.
 /// </summary>
 internal interface IIslandView
@@ -15,9 +16,6 @@ internal interface IIslandView
 
     /// <summary>Lebar pil kecil (DIP) yang dibutuhkan isi saat ini; biasanya <see cref="Shell.IslandShape.Compact"/>.</summary>
     double CompactWidth { get; }
-
-    /// <summary>Isi pil besar, berukuran <see cref="Shell.IslandShape.Expanded"/>.</summary>
-    UIElement Expanded { get; }
 
     /// <summary>
     /// Isi pil notifikasi (<see cref="Shell.IslandShape.Notification"/>), untuk konten penting yang sementara.
