@@ -21,6 +21,7 @@ internal sealed class SettingsApplier : IDisposable
     private readonly MediaView _mediaView;
     private readonly BatteryModule _battery;
     private readonly DashboardView _dashboard;
+    private readonly IslandTheme _theme;
     private readonly DispatcherQueue _dispatcher;
     private FullscreenWatcher? _fullscreen;
     private bool _fullscreenNow;
@@ -31,9 +32,11 @@ internal sealed class SettingsApplier : IDisposable
         MediaModule media,
         MediaView mediaView,
         BatteryModule battery,
-        DashboardView dashboard)
+        DashboardView dashboard,
+        IslandTheme theme)
     {
         _dashboard = dashboard;
+        _theme = theme;
         _store = store;
         _stateMachine = stateMachine;
         _media = media;
@@ -77,6 +80,7 @@ internal sealed class SettingsApplier : IDisposable
         _stateMachine.OnFullscreenChanged(settings.HideInFullscreen && _fullscreenNow);
         _media.LyricsEnabled = settings.ShowLyrics;
         _dashboard.SetWeatherEnabled(settings.ShowWeather);
+        _theme.SetBackground(settings.Background);
         _mediaView.SetVisualizerEnabled(settings.ShowVisualizer);
 
         var low = settings.LowBatteryPercent;

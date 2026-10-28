@@ -1,29 +1,44 @@
 using Lanting.Core.Island;
-using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 
 namespace Lanting.App.Views;
 
-/// <summary>Tampilan saat tidak ada konten: pil kecil berisi jam.</summary>
+/// <summary>Tampilan saat tidak ada konten: pil kecil berisi jam dan tanggal singkat ("13:48  Rab 28").</summary>
 internal sealed class IdleView : IIslandView
 {
-    private readonly TextBlock _time = new()
-    {
-        FontSize = 15,
-        FontWeight = FontWeights.SemiBold,
-        Foreground = new SolidColorBrush(Colors.White),
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-    };
+    private readonly TextBlock _time;
+    private readonly TextBlock _date;
 
-    public IdleView(ClockTicker clock)
+    public IdleView(ClockTicker clock, IslandTheme theme)
     {
-        _time.Text = ClockTicker.Time(DateTime.Now);
-        clock.Tick += (_, now) => _time.Text = ClockTicker.Time(now);
-        Compact = new Grid { Children = { _time } };
+        _time = new TextBlock
+        {
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = theme.Primary,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _date = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = theme.Secondary,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Show(DateTime.Now);
+        clock.Tick += (_, now) => Show(now);
+
+        var line = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        line.Children.Add(_time);
+        line.Children.Add(_date);
+        Compact = new Grid { Children = { line } };
     }
 
     public UIElement Compact { get; }
@@ -34,5 +49,11 @@ internal sealed class IdleView : IIslandView
 
     public void Show(IslandContent content)
     {
+    }
+
+    private void Show(DateTime now)
+    {
+        _time.Text = ClockTicker.Time(now);
+        _date.Text = ClockTicker.ShortDate(now);
     }
 }

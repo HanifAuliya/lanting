@@ -5,6 +5,9 @@ namespace Lanting.Core.Settings;
 /// <summary>Pengaturan yang bisa diubah dari jendela Pengaturan. Disimpan sebagai JSON.</summary>
 public sealed record LantingSettings
 {
+    /// <summary>Warna latar island.</summary>
+    public IslandBackground Background { get; init; } = IslandBackground.Translucent;
+
     /// <summary>Tampilkan pil kecil walau tidak ada lagu.</summary>
     public bool ShowWhenIdle { get; init; } = true;
 
@@ -30,7 +33,24 @@ public sealed record LantingSettings
     public static IReadOnlyList<int> LowBatteryChoices { get; } = [10, 15, 20, 25, 30];
 
     /// <summary>Rapikan nilai yang tidak masuk akal (misalnya file diedit tangan).</summary>
-    public LantingSettings Normalize() => this with { LowBatteryPercent = Math.Clamp(LowBatteryPercent, 5, 50) };
+    public LantingSettings Normalize() => this with
+    {
+        LowBatteryPercent = Math.Clamp(LowBatteryPercent, 5, 50),
+        Background = Enum.IsDefined(Background) ? Background : IslandBackground.Translucent,
+    };
+}
+
+/// <summary>Pilihan warna latar island.</summary>
+public enum IslandBackground
+{
+    /// <summary>Agak tembus pandang, terang atau gelap mengikuti tema Windows.</summary>
+    Translucent,
+
+    /// <summary>Tidak tembus pandang, terang atau gelap mengikuti tema Windows.</summary>
+    Solid,
+
+    /// <summary>Hitam pekat seperti Dynamic Island iPhone, apa pun tema Windows-nya.</summary>
+    Black,
 }
 
 /// <summary>

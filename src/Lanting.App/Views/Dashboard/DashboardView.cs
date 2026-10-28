@@ -1,68 +1,96 @@
+using System.Numerics;
 using Lanting.App.QuickToggles;
 using Lanting.Core.Island;
 using Lanting.Core.Weather;
-using Microsoft.UI;
+using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
 using static Lanting.App.Views.Dashboard.DashboardStyle;
 
 namespace Lanting.App.Views.Dashboard;
 
 /// <summary>
-/// Isi island saat dibuka (hover): tanggal, jam, tombol Pengaturan, lalu kartu musik, cuaca + hari,
-/// kontrol cepat, dan aplikasi. Berukuran <see cref="Shell.IslandShape.Expanded"/>.
+/// Isi island saat dibuka (hover). Baris atas: jam, menu (Musik, Cuaca, Kontrol, Aplikasi), dan tombol Pengaturan.
+/// Di bawahnya satu halaman saja, sesuai menu yang dipilih. Berukuran <see cref="Shell.IslandShape.Expanded"/>.
 /// </summary>
 internal sealed class DashboardView
 {
+    private const double TabWidth = 84;
+    private const double TabHeight = 28;
+    private const double TabPadding = 3;
+
+    private readonly IslandTheme _theme;
     private readonly MediaView _media;
-    private readonly WeatherCard _weather;
-    private readonly TogglesCard _toggles;
-    private readonly TextBlock _date = Text(12, Muted);
-    private readonly TextBlock _time = Text(20, Colors.White, bold: true);
+    private readonly WeatherPage _weather;
+    private readonly TogglesPage _toggles;
+    private readonly TextBlock _time;
+    private readonly List<Tab> _tabs = [];
+    private readonly Border _highlight;
+    private Tab? _selected;
 
-    public DashboardView(MediaView media, WeatherService weather, IEnumerable<IQuickToggle> toggles, ClockTicker clock)
+    public DashboardView(IslandTheme theme, MediaView media, WeatherService weather, IEnumerable<IQuickToggle> toggles, ClockTicker clock)
     {
+        _theme = theme;
         _media = media;
-        _weather = new WeatherCard(weather);
-        _toggles = new TogglesCard(toggles);
-        var apps = new AppsCard();
+        _weather = new WeatherPage(theme, weather);
+        _toggles = new TogglesPage(theme, toggles);
+        var apps = new AppsPage(theme);
 
-        // Baris atas: tanggal | jam | Pengaturan.
-        var settings = IconButton("\uE713", "Pengaturan", 32, 16);
-        settings.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Colors.Transparent);
+        var pages = new Grid { Width = PageWidth, Height = PageHeight };
+        _tabs.Add(new Tab("Musik", "\uEC4F", media.Page));
+        _tabs.Add(new Tab("Cuaca", "\uE753", _weather.Root, _weather.Refresh));
+        _tabs.Add(new Tab("Kontrol", "\uE9E9", _toggles.Root, _toggles.Refresh));
+        _tabs.Add(new Tab("Aplikasi", "\uE71D", apps.Root));
+
+        // Menu: tombol-tombol sama lebar, dengan sorotan yang bergeser ke menu yang dipilih.
+        _highlight = new Border
+        {
+            Width = TabWidth,
+            Height = TabHeight,
+            CornerRadius = new CornerRadius(TabHeight / 2),
+            Background = theme.ControlHover,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        ElementCompositionPreview.SetIsTranslationEnabled(_highlight, true);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (var tab in _tabs)
+        {
+            tab.Button = TabButton(tab);
+            tab.Button.Click += (_, _) => Select(tab, animate: true);
+            buttons.Children.Add(tab.Button);
+            tab.Page.Visibility = Visibility.Collapsed;
+            pages.Children.Add(tab.Page);
+        }
+
+        var menu = new Border
+        {
+            Background = theme.Surface,
+            CornerRadius = new CornerRadius((TabHeight / 2) + TabPadding),
+            Padding = new Thickness(TabPadding),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Child = new Grid { Children = { _highlight, buttons } },
+        };
+
+        _time = Text(theme.Primary, 15, bold: true);
+        _time.VerticalAlignment = VerticalAlignment.Center;
+        _time.Margin = new Thickness(4, 0, 0, 0);
+
+        var settings = RoundButton(theme, "\uE713", "Pengaturan", 30, 14);
         settings.HorizontalAlignment = HorizontalAlignment.Right;
         settings.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
-        _date.VerticalAlignment = VerticalAlignment.Center;
-        _time.HorizontalAlignment = HorizontalAlignment.Center;
-        _time.VerticalAlignment = VerticalAlignment.Center;
 
-        var header = new Grid { Height = 36 };
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        Place(header, _date, 0);
-        Place(header, _time, 1);
-        Place(header, settings, 2);
+        var header = new Grid { Width = PageWidth };
+        header.Children.Add(_time);
+        header.Children.Add(menu);
+        header.Children.Add(settings);
 
-        // Kartu-kartu: musik | cuaca + hari | kontrol | aplikasi.
-        var cards = new Grid { ColumnSpacing = 10 };
-        cards.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
-        cards.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
-        cards.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
-        cards.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        Place(cards, Card(null, media.Card), 0);
-        Place(cards, _weather.Root, 1);
-        Place(cards, _toggles.Root, 2);
-        Place(cards, apps.Root, 3);
-
-        var root = new Grid { Margin = new Thickness(18, 8, 18, 16), RowSpacing = 8 };
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        var root = new StackPanel { Margin = new Thickness(0, 10, 0, 0), Spacing = 12, HorizontalAlignment = HorizontalAlignment.Center };
         root.Children.Add(header);
-        Grid.SetRow(cards, 1);
-        root.Children.Add(cards);
+        root.Children.Add(pages);
         Root = root;
 
+        Select(_tabs[0], animate: false);
         ShowTime(DateTime.Now);
         clock.Tick += (_, now) => ShowTime(now);
     }
@@ -72,12 +100,15 @@ internal sealed class DashboardView
 
     public FrameworkElement Root { get; }
 
-    /// <summary>Dashboard baru saja dibuka: baca ulang hal-hal yang tidak punya event (cuaca, kontrol, progres hari).</summary>
+    /// <summary>Dashboard baru saja dibuka: baca ulang halaman yang tidak punya event (cuaca, kontrol).</summary>
     public void OnOpened()
     {
         ShowTime(DateTime.Now);
-        _weather.Refresh();
-        _toggles.Refresh();
+        _selected?.Refresh?.Invoke();
+        if (_selected is not null)
+        {
+            Motion.Pop(_selected.Page);
+        }
     }
 
     /// <summary>Konten island berganti. Saat tidak ada konten sama sekali, berarti tidak ada lagu.</summary>
@@ -91,15 +122,82 @@ internal sealed class DashboardView
 
     public void SetWeatherEnabled(bool enabled) => _weather.SetEnabled(enabled);
 
-    private void ShowTime(DateTime now)
+    private void Select(Tab tab, bool animate)
     {
-        _date.Text = ClockTicker.Date(now);
-        _time.Text = ClockTicker.Time(now);
+        if (ReferenceEquals(tab, _selected))
+        {
+            return;
+        }
+
+        var previous = _selected;
+        _selected = tab;
+        foreach (var t in _tabs)
+        {
+            t.Button!.Foreground = ReferenceEquals(t, tab) ? _theme.Primary : _theme.Secondary;
+        }
+
+        if (previous is not null)
+        {
+            previous.Page.Visibility = Visibility.Collapsed;
+        }
+
+        tab.Page.Visibility = Visibility.Visible;
+        tab.Refresh?.Invoke();
+
+        // Sorotan menu meluncur ke menu yang dipilih.
+        var visual = ElementCompositionPreview.GetElementVisual(_highlight);
+        var target = new Vector3((float)(_tabs.IndexOf(tab) * TabWidth), 0f, 0f);
+        if (!animate)
+        {
+            visual.Properties.InsertVector3("Translation", target);
+            return;
+        }
+
+        var compositor = visual.Compositor;
+        var slide = compositor.CreateVector3KeyFrameAnimation();
+        slide.InsertKeyFrame(1f, target, compositor.CreateCubicBezierEasingFunction(new(0.2f, 0.9f), new(0.3f, 1f)));
+        slide.Duration = TimeSpan.FromMilliseconds(260);
+        visual.StartAnimation("Translation", slide);
+        Motion.Pop(tab.Page);
     }
 
-    private static void Place(Grid grid, FrameworkElement element, int column)
+    private Button TabButton(Tab tab)
     {
-        Grid.SetColumn(element, column);
-        grid.Children.Add(element);
+        var label = Text(_theme.Secondary, 12, bold: true);
+        label.Text = tab.Label;
+        // Warna teks ikut tombol (redup, atau terang saat dipilih/disorot).
+        label.ClearValue(TextBlock.ForegroundProperty);
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        content.Children.Add(Icon(tab.Glyph, 13));
+        content.Children.Add(label);
+
+        var button = Pressable(content, tab.Label, TabHeight / 2, _theme.Transparent, _theme.Surface, _theme.Transparent, _theme.Secondary);
+        button.Resources["ButtonForegroundPointerOver"] = _theme.Primary;
+        button.Resources["ButtonForegroundPressed"] = _theme.Primary;
+        button.Width = TabWidth;
+        button.Height = TabHeight;
+        return button;
+    }
+
+    private void ShowTime(DateTime now) => _time.Text = ClockTicker.Time(now);
+
+    private sealed class Tab(string label, string glyph, FrameworkElement page, Action? refresh = null)
+    {
+        public string Label { get; } = label;
+
+        public string Glyph { get; } = glyph;
+
+        public FrameworkElement Page { get; } = page;
+
+        /// <summary>Dipanggil setiap kali halaman ini mulai terlihat.</summary>
+        public Action? Refresh { get; } = refresh;
+
+        public Button? Button { get; set; }
     }
 }

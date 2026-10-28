@@ -80,20 +80,33 @@ internal sealed class IslandWindowChrome
     }
 
     /// <summary>
-    /// Batasi bagian window yang bisa disentuh mouse ke kotak selebar <paramref name="width"/> DIP di tengah atas.
-    /// Sisanya transparan dan klik tembus ke aplikasi di bawahnya. Kotaknya sengaja persegi (bukan bulat)
-    /// karena region Windows tidak antialias; sudut pil yang halus digambar oleh clip di dalamnya.
+    /// Batasi bagian window yang terlihat dan bisa disentuh mouse: kotak <paramref name="width"/> x <paramref name="height"/>
+    /// DIP di tengah atas, ditambah kotak kecil selebar <paramref name="ear"/> di kiri-kanan atasnya untuk telinga pil.
+    /// Sisanya klik tembus ke aplikasi di bawahnya. Kotaknya sengaja persegi (bukan bulat) karena region Windows
+    /// tidak antialias; sudut pil yang halus digambar oleh clip di dalamnya.
     /// </summary>
-    public void SetHitArea(double width, double height)
+    /// <param name="pointerArea">Bagian yang dianggap "mouse di atas pil" oleh <see cref="ContainsCursor"/> (tanpa telinga).</param>
+    public void SetRegion(double width, double height, double ear, (double Width, double Height) pointerArea)
     {
         var scale = Scale;
         var w = (int)Math.Ceiling(width * scale);
         var h = (int)Math.Ceiling(height * scale);
+        var e = (int)Math.Ceiling(ear * scale);
         var left = (_placed.Width - w) / 2;
 
-        _hitArea = new RECT { Left = left, Top = 0, Right = left + w, Bottom = h };
+        var pw = (int)Math.Ceiling(pointerArea.Width * scale);
+        var pointerLeft = (_placed.Width - pw) / 2;
+        _hitArea = new RECT { Left = pointerLeft, Top = 0, Right = pointerLeft + pw, Bottom = (int)Math.Ceiling(pointerArea.Height * scale) };
+
+        var region = CreateRectRgn(left, 0, left + w, h);
+        if (e > 0)
+        {
+            var ears = CreateRectRgn(left - e, 0, left + w + e, e);
+            _ = CombineRgn(region, region, ears, RGN_OR);
+            _ = DeleteObject(ears);
+        }
+
         // Setelah SetWindowRgn berhasil, region dimiliki Windows; jangan dihapus sendiri.
-        var region = CreateRectRgn(_hitArea.Left, _hitArea.Top, _hitArea.Right, _hitArea.Bottom);
         if (SetWindowRgn(_hwnd, region, true) == 0)
         {
             _ = DeleteObject(region);

@@ -24,18 +24,19 @@ internal sealed partial class IslandWindow : Window
     // Island menempel langsung ke tepi atas layar.
     private const double TopMargin = 0;
 
-    // Kira-kira waktu spring selesai; setelah itu area klik boleh mengecil tanpa memotong animasi.
-    private static readonly TimeSpan ShrinkDelay = TimeSpan.FromMilliseconds(450);
+    // Kira-kira waktu spring selesai; setelah itu window boleh mengecil ke bentuk pil tanpa memotong pantulannya.
+    private static readonly TimeSpan SettleDelay = TimeSpan.FromMilliseconds(500);
 
     private readonly IslandController _controller;
     private readonly IslandStateMachine _stateMachine;
     private readonly IReadOnlyList<IIslandView> _views;
     private readonly IdleView _idle;
     private readonly DashboardView _dashboard;
+    private readonly IslandTheme _theme;
     private readonly IslandWindowChrome _chrome;
     private readonly PillAnimator _animator;
     private readonly DispatcherQueue _dispatcher;
-    private readonly DispatcherQueueTimer _shrinkTimer;
+    private readonly DispatcherQueueTimer _settleTimer;
     private readonly Canvas _root;
     private readonly Grid _pill;
     private readonly Grid _compactHost;
@@ -43,7 +44,8 @@ internal sealed partial class IslandWindow : Window
     private readonly Grid _notificationHost;
     private IIslandView? _activeView;
     private IslandState _appliedState;
-    private IslandShape _hitShape;
+    private IslandShape _shape;
+    private bool _pointerInside;
     private double _compactWidth = IslandShape.Compact.Width;
 
     public IslandWindow(
@@ -51,8 +53,10 @@ internal sealed partial class IslandWindow : Window
         IslandStateMachine stateMachine,
         IEnumerable<IIslandView> views,
         IdleView idle,
-        DashboardView dashboard)
+        DashboardView dashboard,
+        IslandTheme theme)
     {
+        _theme = theme;
         _controller = controller;
         _stateMachine = stateMachine;
         _idle = idle;
@@ -64,26 +68,29 @@ internal sealed partial class IslandWindow : Window
         Content = _root;
         ExtendsContentIntoTitleBar = true;
 
-        // Latar window benar-benar transparan; yang terlihat hanya pil hitam.
+        // Latar window benar-benar transparan; yang terlihat hanya pil.
         SystemBackdrop = new TransparentTintBackdrop();
 
         _chrome = new IslandWindowChrome(AppWindow, WindowNative.GetWindowHandle(this));
         _chrome.Configure();
 
         _dispatcher = DispatcherQueue.GetForCurrentThread();
-        _shrinkTimer = _dispatcher.CreateTimer();
-        _shrinkTimer.IsRepeating = false;
-        _shrinkTimer.Interval = ShrinkDelay;
-        _shrinkTimer.Tick += (_, _) => SetHitShape(ShapeFor(_stateMachine.State));
+        _settleTimer = _dispatcher.CreateTimer();
+        _settleTimer.IsRepeating = false;
+        _settleTimer.Interval = SettleDelay;
+        _settleTimer.Tick += (_, _) => SetRegion(_shape, settled: true);
         _appliedState = _stateMachine.State;
 
         var initial = ShapeFor(_stateMachine.State);
-        _animator = new PillAnimator(_pill, initial);
+        _animator = new PillAnimator(_pill, _root, initial);
+        ApplyTheme();
+        _theme.Changed += OnThemeChanged;
         PillAnimator.SetRevealed(_expandedHost, _stateMachine.State == IslandState.Expanded);
         PillAnimator.SetRevealed(_compactHost, _stateMachine.State != IslandState.Expanded);
         PillAnimator.SetRevealed(_notificationHost, false);
         _chrome.Place(IslandShape.Max.Width, IslandShape.Max.Height, TopMargin);
-        SetHitShape(initial);
+        _shape = initial;
+        SetRegion(initial, settled: true);
         _chrome.SetVisible(_stateMachine.State != IslandState.Hidden);
         ShowContent(_controller.Current);
 
@@ -177,36 +184,37 @@ internal sealed partial class IslandWindow : Window
             ? IslandShape.For(state)
             : IslandShape.Compact with { Width = _compactWidth };
 
-    /// <summary>Animasikan pil ke bentuk baru dan atur area klik mengikutinya.</summary>
+    /// <summary>Animasikan pil ke bentuk baru dan atur bagian window yang terlihat mengikutinya.</summary>
     private void Reshape(IslandShape target)
     {
-        _shrinkTimer.Stop();
+        _settleTimer.Stop();
 
         // Biasanya tidak melakukan apa-apa; hanya bila resolusi atau skala layar berubah.
-        if (_chrome.Place(IslandShape.Max.Width, IslandShape.Max.Height, TopMargin))
-        {
-            SetHitShape(_hitShape);
-        }
+        _chrome.Place(IslandShape.Max.Width, IslandShape.Max.Height, TopMargin);
 
-        if (!_hitShape.Contains(target))
-        {
-            // Membesar: area klik langsung ikut besar supaya mouse tidak "jatuh" keluar di tengah animasi.
-            SetHitShape(IslandShape.Union(target, _hitShape));
-        }
-
-        if (!target.Contains(_hitShape))
-        {
-            // Mengecil: area klik menyusul setelah spring selesai.
-            _shrinkTimer.Start();
-        }
-
+        // Selama spring berjalan, window memuat bentuk lama dan baru plus ruang pantulan, supaya tepi pil
+        // tidak terpotong kotak window. Setelah spring selesai, window kembali sepas bentuk pil.
+        var previous = _shape;
+        _shape = target;
+        var both = IslandShape.Union(target, previous) with { CornerRadius = Math.Max(target.CornerRadius, previous.CornerRadius) };
+        SetRegion(both, settled: false);
+        _settleTimer.Start();
         _animator.AnimateTo(target);
+        UpdatePointer();
     }
 
-    private void SetHitShape(IslandShape shape)
+    private void SetRegion(IslandShape shape, bool settled)
     {
-        _hitShape = shape;
-        _chrome.SetHitArea(shape.Width, shape.Height);
+        var area = settled ? shape : shape.WithOvershoot();
+        _chrome.SetRegion(area.Width, area.Height, shape.Ear, (_shape.Width, _shape.Height));
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e) => ApplyTheme();
+
+    private void ApplyTheme()
+    {
+        _root.RequestedTheme = _theme.ElementTheme;
+        _animator.SetColors(_theme.Fill, _theme.Outline);
     }
 
     private (Canvas Root, Grid Pill, Grid CompactHost, Grid ExpandedHost, Grid NotificationHost) BuildContent()
@@ -241,7 +249,7 @@ internal sealed partial class IslandWindow : Window
         {
             Width = IslandShape.Max.Width,
             Height = IslandShape.Max.Height,
-            Background = new SolidColorBrush(Colors.Black),
+            Background = _theme.FillBrush,
         };
         pill.Children.Add(expandedHost);
         pill.Children.Add(compactHost);
@@ -260,22 +268,37 @@ internal sealed partial class IslandWindow : Window
         {
             Background = new SolidColorBrush(Colors.Transparent),
             ContextFlyout = menu,
-            // Pil selalu hitam, jadi tombol dan menu memakai tema gelap apa pun tema Windows-nya.
-            RequestedTheme = ElementTheme.Dark,
         };
         root.Children.Add(pill);
-        root.PointerEntered += OnPointerEntered;
-        root.PointerExited += OnPointerExited;
+
+        // Event dari tombol di dalam pil juga ikut, walau tombolnya sudah menanganinya.
+        root.AddHandler(UIElement.PointerEnteredEvent, new PointerEventHandler(OnPointer), handledEventsToo: true);
+        root.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnPointer), handledEventsToo: true);
+        root.AddHandler(UIElement.PointerExitedEvent, new PointerEventHandler(OnPointer), handledEventsToo: true);
 
         return (root, pill, compactHost, expandedHost, notificationHost);
     }
 
-    private void OnPointerEntered(object sender, PointerRoutedEventArgs e) => _stateMachine.OnPointerEntered();
+    private void OnPointer(object sender, PointerRoutedEventArgs e) => UpdatePointer();
 
-    private void OnPointerExited(object sender, PointerRoutedEventArgs e)
+    /// <summary>
+    /// Mouse dianggap di atas pil hanya bila benar-benar di dalam bentuk pil saat ini, bukan sekadar di dalam window:
+    /// selama animasi window sengaja lebih besar (ruang pantulan), dan mouse di ruang itu tidak boleh membuka pil.
+    /// </summary>
+    private void UpdatePointer()
     {
-        // PointerExited dari tombol di dalam pil ikut naik ke sini; abaikan selama mouse masih di dalam window.
-        if (!_chrome.ContainsCursor())
+        var inside = _chrome.ContainsCursor();
+        if (inside == _pointerInside)
+        {
+            return;
+        }
+
+        _pointerInside = inside;
+        if (inside)
+        {
+            _stateMachine.OnPointerEntered();
+        }
+        else
         {
             _stateMachine.OnPointerExited();
         }
@@ -287,6 +310,7 @@ internal sealed partial class IslandWindow : Window
     {
         _controller.CurrentChanged -= OnContentChanged;
         _stateMachine.StateChanged -= OnStateChanged;
-        _shrinkTimer.Stop();
+        _theme.Changed -= OnThemeChanged;
+        _settleTimer.Stop();
     }
 }

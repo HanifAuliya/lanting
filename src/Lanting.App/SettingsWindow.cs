@@ -24,6 +24,9 @@ internal sealed partial class SettingsWindow : Window
     private static readonly Color CardStrokeDark = Color.FromArgb(0x19, 0x00, 0x00, 0x00);
     private static readonly Color CardStrokeLight = Color.FromArgb(0x0F, 0x00, 0x00, 0x00);
 
+    // Urutannya sama dengan IslandBackground.
+    private static readonly string[] BackgroundNames = ["Transparan", "Solid", "Hitam pekat"];
+
     private readonly SettingsStore _store;
 
     public SettingsWindow(SettingsStore store)
@@ -43,9 +46,27 @@ internal sealed partial class SettingsWindow : Window
         page.Children.Add(new TextBlock { Text = "Pengaturan", FontSize = 28, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) });
 
         page.Children.Add(Section("Island"));
+
+        var background = new ComboBox { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
+        foreach (var name in BackgroundNames)
+        {
+            background.Items.Add(name);
+        }
+
+        background.SelectedIndex = (int)settings.Background;
+        background.SelectionChanged += (_, _) =>
+        {
+            if (background.SelectedIndex >= 0)
+            {
+                var chosen = (IslandBackground)background.SelectedIndex;
+                _store.Update(s => s with { Background = chosen });
+            }
+        };
+        page.Children.Add(Row("Latar island", "Terang atau gelap mengikuti tema Windows (Setelan > Personalisasi > Warna).", background));
+
         page.Children.Add(Toggle(
             "Tampilkan pil saat tidak ada lagu",
-            "Pil hitam kecil tetap ada di atas layar walau tidak ada yang diputar.",
+            "Pil kecil berisi jam tetap ada di atas layar walau tidak ada yang diputar.",
             settings.ShowWhenIdle,
             on => _store.Update(s => s with { ShowWhenIdle = on })));
         page.Children.Add(Toggle(

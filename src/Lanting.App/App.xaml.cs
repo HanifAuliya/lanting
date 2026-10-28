@@ -112,6 +112,9 @@ public partial class App : Application
         services.AddSingleton<IslandStateMachine>();
         services.AddSingleton<ModuleHost>();
 
+        // Warna island (tema Windows + pengaturan latar), dipakai semua view.
+        services.AddSingleton<IslandTheme>();
+
         // Modul fitur: modul di Core + tampilannya (IIslandView) di App.
         services.AddSingleton<SmtcMediaSource>();
         services.AddSingleton<IMediaSource>(sp => sp.GetRequiredService<SmtcMediaSource>());

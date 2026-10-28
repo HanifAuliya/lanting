@@ -20,7 +20,13 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
 ## Fitur
 
 - **Menempel di atas layar**: saat tertutup menampilkan jam, atau lagu yang sedang diputar.
-- **Dashboard** saat kursor diam sebentar di atas pil: tanggal dan jam, kartu musik (dengan tombol sebelumnya / putar / berikutnya), cuaca dan progres hari, kontrol cepat (Wi-Fi, Bluetooth, suara, mikrofon, layar tetap menyala, mode gelap), pintasan aplikasi, dan tombol ⚙️ Pengaturan.
+- **Dashboard** saat kursor diam sebentar di atas pil. Di atasnya ada menu, dan setiap menu membuka satu halaman:
+  - **Musik**: gambar album dengan cahaya warnanya, judul, lirik, tombol sebelumnya / putar / berikutnya.
+  - **Cuaca**: cuaca saat ini, tanggal, dan seberapa jauh hari ini sudah berjalan.
+  - **Kontrol**: Wi-Fi, Bluetooth, suara, mikrofon, layar tetap nyala, mode gelap.
+  - **Aplikasi**: File Explorer, Unduhan, Kalkulator, Notepad, Task Manager, Setelan Windows.
+  - Tombol ⚙️ untuk Pengaturan.
+- **Mengikuti tema Windows**: terang atau gelap, agak transparan, dengan warna aksen Windows. Bisa diganti ke solid atau hitam pekat di Pengaturan.
 - **Lagu yang sedang diputar** (Spotify, YouTube Music, browser, Media Player): gambar album, judul, visualizer.
 - **Lirik sinkron** dari LRCLIB, langsung di pil.
 - **Baterai Bluetooth**: keyboard/mouse tersambung, terputus, dan baterai lemah.
@@ -31,7 +37,7 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
 
 1. Buka halaman [Releases](https://github.com/HanifAuliya/lanting/releases), lalu unduh `Lanting-Setup-x.y.z.exe`.
 2. Jalankan installer. Tidak perlu hak admin.
-3. Lanting muncul sebagai pil hitam di tengah atas layar, ditambah ikon di system tray.
+3. Lanting muncul sebagai pil kecil berisi jam di tengah atas layar, ditambah ikon di system tray.
 
 Kalau Windows SmartScreen memperingatkan ("Windows protected your PC"), klik **More info** lalu **Run anyway**. Peringatan ini muncul karena installernya belum ditandatangani sertifikat berbayar.
 

@@ -16,7 +16,7 @@ internal sealed class KeepAwakeToggle : IQuickToggle
 
     private bool _on;
 
-    public string Label => "Layar tetap menyala";
+    public string Label => "Layar tetap nyala";
 
     public string Glyph => "\uE706";
 

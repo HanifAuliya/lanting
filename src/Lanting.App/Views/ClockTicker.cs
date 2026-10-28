@@ -33,6 +33,9 @@ internal sealed class ClockTicker
 
     public static string Date(DateTime time) => time.ToString("dddd, d MMMM", Culture);
 
+    /// <summary>Untuk pil kecil: "Rab 28".</summary>
+    public static string ShortDate(DateTime time) => time.ToString("ddd d", Culture);
+
     private void Schedule()
     {
         // Tunggu sampai detik ke-0 menit berikutnya (plus sedikit supaya pasti sudah lewat).

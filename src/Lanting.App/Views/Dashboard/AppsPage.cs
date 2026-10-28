@@ -1,45 +1,39 @@
 using System.Diagnostics;
 using Lanting.App.Shell;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using static Lanting.App.Views.Dashboard.DashboardStyle;
 
 namespace Lanting.App.Views.Dashboard;
 
-/// <summary>Pintasan aplikasi Windows yang sering dipakai.</summary>
-internal sealed class AppsCard
+/// <summary>Halaman Aplikasi: pintasan aplikasi Windows yang sering dipakai.</summary>
+internal sealed class AppsPage
 {
-    private const double ButtonSize = 34;
-
     private static readonly (string Label, string Glyph, string File, string? Arguments)[] Apps =
     [
-        ("Explorer", "\uEC50", "explorer.exe", null),
+        ("File Explorer", "\uEC50", "explorer.exe", null),
         ("Unduhan", "\uE896", "explorer.exe", "shell:Downloads"),
         ("Kalkulator", "\uE8EF", "calc.exe", null),
         ("Notepad", "\uE70B", "notepad.exe", null),
         ("Task Manager", "\uE9D9", "taskmgr.exe", null),
-        ("Setelan", "\uE713", "ms-settings:", null),
+        ("Setelan Windows", "\uE713", "ms-settings:", null),
     ];
 
-    public AppsCard()
+    public AppsPage(IslandTheme theme)
     {
+        // Ubin aplikasi tidak pernah berganti warna, jadi satu TilePaint bisa dipakai bersama.
+        var paint = new TilePaint();
+        paint.Use(theme, on: false);
+        theme.Changed += (_, _) => paint.Use(theme, on: false);
+
         var tiles = new List<FrameworkElement>();
         foreach (var (label, glyph, file, arguments) in Apps)
         {
-            var button = IconButton(glyph, label, ButtonSize, 10);
-            button.Click += (_, _) => Launch(label, file, arguments);
-
-            var caption = Text(9, Muted);
-            caption.Text = label;
-            caption.HorizontalAlignment = HorizontalAlignment.Center;
-
-            var tile = new StackPanel { Spacing = 3 };
-            tile.Children.Add(button);
-            tile.Children.Add(caption);
+            var tile = Tile(glyph, label, paint);
+            tile.Click += (_, _) => Launch(label, file, arguments);
             tiles.Add(tile);
         }
 
-        Root = Card("Aplikasi", Tiles(3, 6, tiles));
+        Root = Tiles(3, 8, tiles);
     }
 
     public FrameworkElement Root { get; }
