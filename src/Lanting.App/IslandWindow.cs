@@ -1,5 +1,6 @@
 using Lanting.App.Shell;
 using Lanting.App.Views;
+using Lanting.App.Views.Dashboard;
 using Lanting.Core.Island;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
@@ -15,11 +16,13 @@ namespace Lanting.App;
 /// <summary>
 /// Window island. Tampilannya dibangun lewat kode (bukan XAML) supaya ringan dan
 /// tidak bergantung pada pemuatan file XAML saat startup.
-/// Isi pil berasal dari <see cref="IIslandView"/>: satu view per jenis konten, ditambah <see cref="IdleView"/>.
+/// Isi pil kecil berasal dari <see cref="IIslandView"/>: satu view per jenis konten, ditambah <see cref="IdleView"/> (jam).
+/// Pil besar (saat di-hover) selalu berisi <see cref="DashboardView"/>.
 /// </summary>
 internal sealed partial class IslandWindow : Window
 {
-    private const double TopMargin = 8;
+    // Island menempel langsung ke tepi atas layar.
+    private const double TopMargin = 0;
 
     // Kira-kira waktu spring selesai; setelah itu area klik boleh mengecil tanpa memotong animasi.
     private static readonly TimeSpan ShrinkDelay = TimeSpan.FromMilliseconds(450);
@@ -27,7 +30,8 @@ internal sealed partial class IslandWindow : Window
     private readonly IslandController _controller;
     private readonly IslandStateMachine _stateMachine;
     private readonly IReadOnlyList<IIslandView> _views;
-    private readonly IdleView _idle = new();
+    private readonly IdleView _idle;
+    private readonly DashboardView _dashboard;
     private readonly IslandWindowChrome _chrome;
     private readonly PillAnimator _animator;
     private readonly DispatcherQueue _dispatcher;
@@ -38,13 +42,22 @@ internal sealed partial class IslandWindow : Window
     private readonly Grid _expandedHost;
     private readonly Grid _notificationHost;
     private IIslandView? _activeView;
+    private IslandState _appliedState;
     private IslandShape _hitShape;
     private double _compactWidth = IslandShape.Compact.Width;
 
-    public IslandWindow(IslandController controller, IslandStateMachine stateMachine, IEnumerable<IIslandView> views)
+    public IslandWindow(
+        IslandController controller,
+        IslandStateMachine stateMachine,
+        IEnumerable<IIslandView> views,
+        IdleView idle,
+        DashboardView dashboard)
     {
         _controller = controller;
         _stateMachine = stateMachine;
+        _idle = idle;
+        _dashboard = dashboard;
+        _dashboard.SettingsRequested += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
         _views = [.. views, _idle];
 
         (_root, _pill, _compactHost, _expandedHost, _notificationHost) = BuildContent();
@@ -62,6 +75,7 @@ internal sealed partial class IslandWindow : Window
         _shrinkTimer.IsRepeating = false;
         _shrinkTimer.Interval = ShrinkDelay;
         _shrinkTimer.Tick += (_, _) => SetHitShape(ShapeFor(_stateMachine.State));
+        _appliedState = _stateMachine.State;
 
         var initial = ShapeFor(_stateMachine.State);
         _animator = new PillAnimator(_pill, initial);
@@ -81,7 +95,7 @@ internal sealed partial class IslandWindow : Window
     /// <summary>Diminta keluar dari menu klik kanan; App yang mematikan modul dan menutup aplikasi.</summary>
     public event EventHandler? ExitRequested;
 
-    /// <summary>"Pengaturan" dipilih dari menu klik kanan.</summary>
+    /// <summary>"Pengaturan" dipilih dari tombol di dashboard atau menu klik kanan.</summary>
     public event EventHandler? SettingsRequested;
 
     private void OnContentChanged(object? sender, IslandContent? content)
@@ -100,10 +114,8 @@ internal sealed partial class IslandWindow : Window
         if (!ReferenceEquals(view, _activeView))
         {
             _compactHost.Children.Clear();
-            _expandedHost.Children.Clear();
             _notificationHost.Children.Clear();
             _compactHost.Children.Add(view.Compact);
-            _expandedHost.Children.Add(view.Expanded);
             if (view.Notification is { } notification)
             {
                 _notificationHost.Children.Add(notification);
@@ -112,13 +124,15 @@ internal sealed partial class IslandWindow : Window
             _activeView?.SetCompactOnScreen(false);
             _activeView = view;
             view.SetCompactOnScreen(_stateMachine.State is IslandState.Compact);
-            Motion.Pop(view.Compact, view.Expanded);
+            Motion.Pop(view.Compact);
         }
 
         if (content is not null)
         {
             view.Show(content);
         }
+
+        _dashboard.Show(content);
 
         // Misalnya lagu dengan lirik: pil kecil melebar supaya baris liriknya muat.
         if (view.CompactWidth != _compactWidth)
@@ -134,11 +148,18 @@ internal sealed partial class IslandWindow : Window
 
     private void ApplyState(IslandState state)
     {
+        var opened = state == IslandState.Expanded && _appliedState != IslandState.Expanded;
+        _appliedState = state;
         if (state == IslandState.Hidden)
         {
             _chrome.SetVisible(false);
             _activeView?.SetCompactOnScreen(false);
             return;
+        }
+
+        if (opened)
+        {
+            _dashboard.OnOpened();
         }
 
         Reshape(ShapeFor(state));
@@ -204,6 +225,7 @@ internal sealed partial class IslandWindow : Window
             Height = IslandShape.Expanded.Height,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
+            Children = { _dashboard.Root },
         };
 
         var notificationHost = new Grid

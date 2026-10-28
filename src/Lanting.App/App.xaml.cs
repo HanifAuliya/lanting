@@ -1,15 +1,19 @@
 using Lanting.App.Battery;
 using Lanting.App.Media;
+using Lanting.App.QuickToggles;
 using Lanting.App.Shell;
 using Lanting.App.Views;
+using Lanting.App.Views.Dashboard;
 using Lanting.Core.Battery;
 using Lanting.Core.Island;
 using Lanting.Core.Lyrics;
 using Lanting.Core.Media;
 using Lanting.Core.Modules;
 using Lanting.Core.Settings;
+using Lanting.Core.Weather;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
+using Windows.Devices.Radios;
 using WinRT.Interop;
 
 namespace Lanting.App;
@@ -74,6 +78,13 @@ public partial class App : Application
             StartupLog.Write($"{modules.Started.Count} modul berjalan.");
 
             // Smoke test CI: buka Pengaturan juga, supaya error yang hanya muncul di build Release ikut ketahuan.
+            // Smoke test CI: buka dashboard juga (seolah di-hover), supaya error di sana ikut ketahuan dan terlihat di screenshot.
+            if (Environment.GetEnvironmentVariable("LANTING_SMOKE_EXPANDED") == "1")
+            {
+                _services.GetRequiredService<IslandStateMachine>().OnPointerEntered();
+                StartupLog.Write("Dashboard dibuka (smoke test).");
+            }
+
             if (Environment.GetEnvironmentVariable("LANTING_SMOKE_SETTINGS") == "1")
             {
                 OpenSettings();
@@ -125,6 +136,24 @@ public partial class App : Application
         services.AddSingleton<BatteryModule>();
         services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<BatteryModule>());
         services.AddSingleton<IIslandView, BatteryView>();
+
+        // Dashboard (isi island saat dibuka).
+        services.AddSingleton(sp => new WeatherService(
+            new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(10),
+                DefaultRequestHeaders = { { "User-Agent", $"Lanting/{typeof(App).Assembly.GetName().Version?.ToString(3)} (https://github.com/HanifAuliya/lanting)" } },
+            },
+            sp.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<IQuickToggle>(new RadioToggle(RadioKind.WiFi, "Wi-Fi", "\uE701"));
+        services.AddSingleton<IQuickToggle>(new RadioToggle(RadioKind.Bluetooth, "Bluetooth", "\uE702"));
+        services.AddSingleton<IQuickToggle>(AudioMuteToggle.Speaker());
+        services.AddSingleton<IQuickToggle>(AudioMuteToggle.Microphone());
+        services.AddSingleton<IQuickToggle, KeepAwakeToggle>();
+        services.AddSingleton<IQuickToggle, DarkModeToggle>();
+        services.AddSingleton<ClockTicker>();
+        services.AddSingleton<IdleView>();
+        services.AddSingleton<DashboardView>();
 
         // UI
         services.AddSingleton<IslandWindow>();

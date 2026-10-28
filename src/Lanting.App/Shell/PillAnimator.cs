@@ -92,10 +92,12 @@ internal sealed class PillAnimator
         _clip.StartAnimation(property, animation);
     }
 
-    private static Vector2 SizeOf(IslandShape s) => new((float)s.Width, (float)s.Height);
+    // Clip dibuat lebih tinggi sebesar jari-jari sudut dan digeser ke atas sejauh itu. Bagian di atas tepi elemen
+    // terpotong, jadi sudut atas jadi rata (menempel ke tepi layar) dan hanya sudut bawah yang membulat.
+    private static Vector2 SizeOf(IslandShape s) => new((float)s.Width, (float)(s.Height + s.CornerRadius));
 
     // Pil rata tengah secara horizontal dan menempel di atas.
-    private static Vector2 OffsetOf(IslandShape s) => new((float)((IslandShape.Max.Width - s.Width) / 2), 0f);
+    private static Vector2 OffsetOf(IslandShape s) => new((float)((IslandShape.Max.Width - s.Width) / 2), (float)-s.CornerRadius);
 
     private static Vector2 RadiusOf(IslandShape s) => new((float)s.CornerRadius, (float)s.CornerRadius);
 

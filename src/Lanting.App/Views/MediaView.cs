@@ -16,8 +16,8 @@ using Windows.UI;
 namespace Lanting.App.Views;
 
 /// <summary>
-/// Tampilan lagu: pil kecil berisi gambar album, judul, dan visualizer;
-/// pil besar berisi gambar, judul, artis, nama pemutar, dan tombol sebelumnya / putar / berikutnya.
+/// Tampilan lagu: pil kecil berisi gambar album, judul (atau baris lirik), dan visualizer;
+/// <see cref="Card"/> di dashboard berisi gambar, judul, artis, lirik/nama pemutar, dan tombol sebelumnya / putar / berikutnya.
 /// </summary>
 internal sealed class MediaView : IIslandView
 {
@@ -50,6 +50,8 @@ internal sealed class MediaView : IIslandView
     private readonly Button _next;
     private readonly SolidColorBrush _dimBrush = new(Dim);
     private readonly SolidColorBrush _accentBrush = new(DefaultAccent);
+    private readonly FrameworkElement _songPanel;
+    private readonly FrameworkElement _emptyPanel;
     private NowPlaying? _song;
     private int _thumbnailVersion;
 
@@ -72,11 +74,11 @@ internal sealed class MediaView : IIslandView
         Place(compact, _visualizer.Root, 0, 2);
         Compact = compact;
 
-        // Pil besar (400x160).
-        _expandedArt = new Art(72, 14);
-        _title = Text(16, Colors.White);
+        // Kartu musik di dashboard.
+        _expandedArt = new Art(60, 12);
+        _title = Text(14, Colors.White);
         _title.FontWeight = FontWeights.SemiBold;
-        _artist = Text(13, Muted);
+        _artist = Text(12, Muted);
         _app = Text(12, Dim);
         _app.Margin = new Thickness(0, 2, 0, 0);
 
@@ -94,27 +96,43 @@ internal sealed class MediaView : IIslandView
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Spacing = 12,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Spacing = 8,
         };
         buttons.Children.Add(_previous);
         buttons.Children.Add(_playPause);
         buttons.Children.Add(_next);
 
-        var expanded = new Grid { Margin = new Thickness(24, 18, 24, 12), ColumnSpacing = 14, RowSpacing = 6 };
-        expanded.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        expanded.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        expanded.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        expanded.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        Place(expanded, _expandedArt.Root, 0, 0);
-        Place(expanded, info, 0, 1);
-        Place(expanded, buttons, 1, 0);
+        var song = new Grid { ColumnSpacing = 12, RowSpacing = 4 };
+        song.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        song.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        song.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        song.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Place(song, _expandedArt.Root, 0, 0);
+        Place(song, info, 0, 1);
+        Place(song, buttons, 1, 0);
         Grid.SetColumnSpan(buttons, 2);
-        Expanded = expanded;
+        _songPanel = song;
+
+        var empty = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 8 };
+        empty.Children.Add(new FontIcon { Glyph = MusicGlyph, FontSize = 28, Foreground = new SolidColorBrush(Dim) });
+        empty.Children.Add(new TextBlock
+        {
+            Text = "Tidak ada lagu yang diputar",
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Muted),
+            HorizontalAlignment = HorizontalAlignment.Center,
+        });
+        _emptyPanel = empty;
+
+        Card = new Grid { Children = { song, empty } };
+        ShowEmpty();
     }
 
     public UIElement Compact { get; }
 
-    public UIElement Expanded { get; }
+    /// <summary>Isi kartu musik di dashboard.</summary>
+    public FrameworkElement Card { get; }
 
     public double CompactWidth => _song?.HasLyrics == true ? LyricsCompactWidth : IslandShape.Compact.Width;
 
@@ -125,6 +143,15 @@ internal sealed class MediaView : IIslandView
     /// <summary>Dari pengaturan: visualizer bergerak atau tidak.</summary>
     public void SetVisualizerEnabled(bool enabled) => _visualizer.SetEnabled(enabled);
 
+    /// <summary>Tidak ada lagu (pemutar ditutup): kartu musik menampilkan keadaan kosong.</summary>
+    public void ShowEmpty()
+    {
+        _song = null;
+        _songPanel.Visibility = Visibility.Collapsed;
+        _emptyPanel.Visibility = Visibility.Visible;
+        _visualizer.SetPlaying(false);
+    }
+
     public void Show(IslandContent content)
     {
         if (content.Payload is not NowPlaying song)
@@ -134,6 +161,8 @@ internal sealed class MediaView : IIslandView
 
         var previous = _song;
         _song = song;
+        _songPanel.Visibility = Visibility.Visible;
+        _emptyPanel.Visibility = Visibility.Collapsed;
 
         var newTrack = previous?.Title != song.Title || previous?.Artist != song.Artist;
         if (newTrack)

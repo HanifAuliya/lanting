@@ -66,6 +66,13 @@ internal sealed partial class SettingsWindow : Window
             settings.ShowVisualizer,
             on => _store.Update(s => s with { ShowVisualizer = on })));
 
+        page.Children.Add(Section("Dashboard"));
+        page.Children.Add(Toggle(
+            "Tampilkan cuaca",
+            "Lokasi kira-kira dari alamat internet (ipwho.is), cuaca dari Open-Meteo. Diperbarui paling sering 30 menit sekali.",
+            settings.ShowWeather,
+            on => _store.Update(s => s with { ShowWeather = on })));
+
         page.Children.Add(Section("Baterai Bluetooth"));
         page.Children.Add(Toggle(
             "Pemberitahuan baterai",

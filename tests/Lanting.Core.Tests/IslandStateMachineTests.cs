@@ -6,7 +6,8 @@ namespace Lanting.Core.Tests;
 public class IslandStateMachineTests
 {
     private readonly FakeTimeProvider _time = new();
-    private readonly IslandOptions _options = new() { CollapseDelay = TimeSpan.FromMilliseconds(300) };
+    // Tanpa jeda buka supaya tes lain sederhana; jeda buka dites terpisah di bawah.
+    private readonly IslandOptions _options = new() { CollapseDelay = TimeSpan.FromMilliseconds(300), ExpandDelay = TimeSpan.Zero };
 
     [Fact]
     public void Idle_shows_compact_pill_by_default()
@@ -41,6 +42,35 @@ public class IslandStateMachineTests
 
         _time.Advance(TimeSpan.FromMilliseconds(2));
         Assert.Equal(IslandState.Compact, machine.State);
+    }
+
+    [Fact]
+    public void Resting_on_the_pill_opens_it_after_the_expand_delay()
+    {
+        using var machine = new IslandStateMachine(_options with { ExpandDelay = TimeSpan.FromMilliseconds(250) }, _time);
+
+        machine.OnPointerEntered();
+        _time.Advance(TimeSpan.FromMilliseconds(249));
+        Assert.Equal(IslandState.Compact, machine.State);
+
+        _time.Advance(TimeSpan.FromMilliseconds(2));
+        Assert.Equal(IslandState.Expanded, machine.State);
+    }
+
+    [Fact]
+    public void Passing_over_the_pill_quickly_does_not_open_it()
+    {
+        using var machine = new IslandStateMachine(_options with { ExpandDelay = TimeSpan.FromMilliseconds(250) }, _time);
+        var states = new List<IslandState>();
+        machine.StateChanged += (_, s) => states.Add(s);
+
+        machine.OnPointerEntered();
+        _time.Advance(TimeSpan.FromMilliseconds(100));
+        machine.OnPointerExited();
+        _time.Advance(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(IslandState.Compact, machine.State);
+        Assert.Empty(states);
     }
 
     [Fact]

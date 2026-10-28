@@ -19,11 +19,13 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
 
 ## Fitur
 
-- **Lagu yang sedang diputar** (Spotify, YouTube Music, browser, Media Player): gambar album, judul, visualizer. Arahkan kursor ke pil untuk tombol sebelumnya / putar / berikutnya.
+- **Menempel di atas layar**: saat tertutup menampilkan jam, atau lagu yang sedang diputar.
+- **Dashboard** saat kursor diam sebentar di atas pil: tanggal dan jam, kartu musik (dengan tombol sebelumnya / putar / berikutnya), cuaca dan progres hari, kontrol cepat (Wi-Fi, Bluetooth, suara, mikrofon, layar tetap menyala, mode gelap), pintasan aplikasi, dan tombol ⚙️ Pengaturan.
+- **Lagu yang sedang diputar** (Spotify, YouTube Music, browser, Media Player): gambar album, judul, visualizer.
 - **Lirik sinkron** dari LRCLIB, langsung di pil.
 - **Baterai Bluetooth**: keyboard/mouse tersambung, terputus, dan baterai lemah.
 - **Sembunyi otomatis** saat game, video, atau presentasi layar penuh.
-- **Pengaturan** lewat ikon di system tray atau klik kanan pil.
+- **Pengaturan** lewat tombol ⚙️ di dashboard, ikon di system tray, atau klik kanan pil.
 
 ## Pasang
 
@@ -93,6 +95,9 @@ Aturan arsitektur:
 
 ## Privasi
 
-Untuk mencari lirik, judul dan artis lagu yang sedang diputar dikirim ke [LRCLIB](https://lrclib.net). Tidak ada data lain yang dikirim. Fitur lirik bisa dimatikan di Pengaturan.
+- Untuk mencari lirik, judul dan artis lagu yang sedang diputar dikirim ke [LRCLIB](https://lrclib.net).
+- Untuk cuaca, lokasi kira-kira dicari dari alamat internet lewat [ipwho.is](https://ipwho.is), lalu cuacanya diambil dari [Open-Meteo](https://open-meteo.com). Paling sering 30 menit sekali, dan hanya saat dashboard dibuka.
+
+Tidak ada data lain yang dikirim. Lirik dan cuaca bisa dimatikan di Pengaturan.
 
 Pengaturan disimpan di `%LOCALAPPDATA%\Lanting\settings.json`, log di `%LOCALAPPDATA%\Lanting\lanting.log`.

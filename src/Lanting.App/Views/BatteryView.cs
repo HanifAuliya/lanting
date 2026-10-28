@@ -11,7 +11,7 @@ namespace Lanting.App.Views;
 
 /// <summary>
 /// Pemberitahuan baterai: tersambung/terputus tampil sebentar di pil kecil,
-/// baterai lemah/kritis tampil di pil notifikasi yang lebih besar.
+/// baterai lemah/kritis tampil di pil notifikasi yang lebih besar. Saat di-hover, dashboard yang tampil.
 /// </summary>
 internal sealed class BatteryView : IIslandView
 {
@@ -30,10 +30,6 @@ internal sealed class BatteryView : IIslandView
     private readonly TextBlock _noticeDetail = Text(12, Muted);
     private readonly FontIcon _noticeBattery = Icon(22);
 
-    private readonly FontIcon _expandedDevice = Icon(28);
-    private readonly TextBlock _expandedName = Text(16, Colors.White);
-    private readonly TextBlock _expandedStatus = Text(13, Muted);
-    private readonly TextBlock _expandedPercent = Text(34, Colors.White);
 
     public BatteryView()
     {
@@ -62,26 +58,9 @@ internal sealed class BatteryView : IIslandView
         Place(notice, text, 1);
         Place(notice, _noticeBattery, 2);
         Notification = notice;
-
-        // Pil besar (saat di-hover): ikon + nama + status, persen besar di kanan.
-        var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 4 };
-        _expandedName.FontWeight = FontWeights.SemiBold;
-        info.Children.Add(_expandedName);
-        info.Children.Add(_expandedStatus);
-        _expandedPercent.FontWeight = FontWeights.SemiBold;
-        var expanded = new Grid { Margin = new Thickness(28, 0, 32, 0), ColumnSpacing = 16 };
-        expanded.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        expanded.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        expanded.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Place(expanded, _expandedDevice, 0);
-        Place(expanded, info, 1);
-        Place(expanded, _expandedPercent, 2);
-        Expanded = expanded;
     }
 
     public UIElement Compact { get; }
-
-    public UIElement Expanded { get; }
 
     public UIElement? Notification { get; }
 
@@ -129,13 +108,6 @@ internal sealed class BatteryView : IIslandView
         _noticeDetail.Text = percent.Length == 0 ? device.Name : $"{device.Name} · {percent}";
         _noticeBattery.Glyph = batteryGlyph;
         _noticeBattery.Foreground = brush;
-
-        _expandedDevice.Glyph = deviceGlyph;
-        _expandedDevice.Foreground = brush;
-        _expandedName.Text = device.Name;
-        _expandedStatus.Text = status;
-        _expandedPercent.Text = percent;
-        _expandedPercent.Foreground = brush;
 
         Motion.Pop(_compactName, _compactPercent);
         Motion.Pop(_noticeTitle, _noticeDetail);

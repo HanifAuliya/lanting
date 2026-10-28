@@ -2,12 +2,17 @@ using Lanting.Core.Island;
 
 namespace Lanting.App.Shell;
 
-/// <summary>Ukuran pil (dalam DIP) untuk setiap state.</summary>
+/// <summary>
+/// Ukuran pil (dalam DIP) untuk setiap state. Pil menempel di tepi atas layar, jadi
+/// <see cref="CornerRadius"/> hanya berlaku untuk dua sudut bawah.
+/// </summary>
 internal readonly record struct IslandShape(double Width, double Height, double CornerRadius)
 {
-    public static readonly IslandShape Compact = new(200, 34, 17);
-    public static readonly IslandShape Notification = new(360, 64, 32);
-    public static readonly IslandShape Expanded = new(400, 160, 36);
+    public static readonly IslandShape Compact = new(200, 34, 16);
+    public static readonly IslandShape Notification = new(360, 64, 26);
+
+    /// <summary>Dashboard: jam, musik, cuaca, kontrol cepat, dan aplikasi.</summary>
+    public static readonly IslandShape Expanded = new(800, 236, 28);
 
     // Spring sedikit melewati ukuran target sebelum kembali; ruang ini supaya pantulannya tidak terpotong.
     private const double Overshoot = 24;
