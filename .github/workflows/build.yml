@@ -32,6 +32,7 @@ jobs:
           Remove-Item $log -ErrorAction SilentlyContinue
           $env:LANTING_NO_DIALOG = '1'
           $env:LANTING_XAML_DIAG = '1'
+          $env:LANTING_SMOKE_SETTINGS = '1'
           $p = Start-Process -FilePath out/Lanting/Lanting.exe -PassThru
           Start-Sleep -Seconds 12
 

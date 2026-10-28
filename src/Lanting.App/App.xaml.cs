@@ -72,6 +72,13 @@ public partial class App : Application
             modules.ModuleFaulted += (_, e) => StartupLog.Write($"Modul '{e.ModuleId}' error: {e.Exception}");
             await modules.StartAsync(CancellationToken.None);
             StartupLog.Write($"{modules.Started.Count} modul berjalan.");
+
+            // Smoke test CI: buka Pengaturan juga, supaya error yang hanya muncul di build Release ikut ketahuan.
+            if (Environment.GetEnvironmentVariable("LANTING_SMOKE_SETTINGS") == "1")
+            {
+                OpenSettings();
+                StartupLog.Write("Pengaturan dibuka (smoke test).");
+            }
         }
         catch (Exception ex)
         {
