@@ -17,6 +17,9 @@ public sealed record LantingSettings
     /// <summary>Cari dan tampilkan lirik (judul lagu dikirim ke lrclib.net).</summary>
     public bool ShowLyrics { get; init; } = true;
 
+    /// <summary>Kolom lirik di halaman Musik terlihat. Lirik tetap dicari dan tetap tampil di pil kecil.</summary>
+    public bool ShowLyricsPanel { get; init;} = true;
+
     /// <summary>Cuaca di dashboard (lokasi kira-kira dari alamat IP lewat ipwho.is, cuaca dari Open-Meteo).</summary>
     public bool ShowWeather { get; init; } = true;
 

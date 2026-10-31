@@ -43,6 +43,7 @@ internal sealed class SettingsApplier : IDisposable
         _mediaView = mediaView;
         _battery = battery;
         _dispatcher = DispatcherQueue.GetForCurrentThread();
+        _mediaView.LyricsPanelToggled += OnLyricsPanelToggled;
         _store.Changed += OnChanged;
         Apply(store.Current);
     }
@@ -59,6 +60,7 @@ internal sealed class SettingsApplier : IDisposable
     public void Dispose()
     {
         _store.Changed -= OnChanged;
+        _mediaView.LyricsPanelToggled -= OnLyricsPanelToggled;
         if (_fullscreen is not null)
         {
             _fullscreen.Changed -= OnFullscreenChanged;
@@ -67,6 +69,7 @@ internal sealed class SettingsApplier : IDisposable
 
     private void OnChanged(object? sender, LantingSettings settings) => _dispatcher.TryEnqueue(() => Apply(settings));
 
+    private void OnLyricsPanelToggled(object? sender, bool visible) => _store.Update(s => s with { ShowLyricsPanel = visible });
     private void OnFullscreenChanged(object? sender, bool fullscreen)
     {
         _fullscreenNow = fullscreen;
@@ -82,6 +85,7 @@ internal sealed class SettingsApplier : IDisposable
         _dashboard.SetWeatherEnabled(settings.ShowWeather);
         _theme.SetBackground(settings.Background);
         _mediaView.SetVisualizerEnabled(settings.ShowVisualizer);
+        _mediaView.SetLyricsPanelVisible(settings.ShowLyricsPanel);
 
         var low = settings.LowBatteryPercent;
         _battery.UpdateOptions(new BatteryOptions
