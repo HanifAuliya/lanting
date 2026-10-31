@@ -31,6 +31,15 @@ public sealed record NowPlaying(
     /// <summary>Baris lirik yang sedang dinyanyikan; <c>null</c> sebelum baris pertama atau bila tidak ada lirik.</summary>
     public string? Lyric { get; init; }
 
+    /// <summary>Baris lirik sebelum <see cref="Lyric"/>; <c>null</c> bila tidak ada.</summary>
+    public string? PreviousLyric { get; init; }
+
+    /// <summary>Baris lirik sesudah <see cref="Lyric"/>; <c>null</c> di baris terakhir atau bila tidak ada lirik.</summary>
+    public string? NextLyric { get; init; }
+
     /// <summary>Lagu ini punya lirik bertanda waktu dan posisinya diketahui, jadi <see cref="Lyric"/> akan terisi.</summary>
     public bool HasLyrics { get; init; }
+
+    /// <summary>Posisi dan panjang lagu untuk bar progres; <c>null</c> bila pemutar tidak memberinya (Firefox/Zen).</summary>
+    public PlaybackProgress? Progress { get; init; }
 }

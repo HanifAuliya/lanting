@@ -307,15 +307,15 @@ public sealed class MediaModule : IIslandModule
 
         var hasLyrics = _lyrics is not null && _positionKnown;
         string? lyric = null;
+        string? previousLyric = null;
+        string? nextLyric = null;
         if (hasLyrics)
         {
             var position = _clock.Position;
             var index = _lyrics!.IndexAt(position);
-            if (index >= 0)
-            {
-                var text = _lyrics.Lines[index].Text;
-                lyric = text.Length == 0 ? InstrumentalLyric : text;
-            }
+            lyric = LineAt(index);
+            previousLyric = LineAt(index - 1);
+            nextLyric = LineAt(index + 1);
 
             // Pasang timer tepat untuk baris berikutnya; saat dijeda tidak perlu, nanti dipasang ulang saat diputar.
             if (_clock.IsPlaying && index + 1 < _lyrics.Lines.Count)
@@ -325,7 +325,16 @@ public sealed class MediaModule : IIslandModule
             }
         }
 
-        var shown = _song with { Lyric = lyric, HasLyrics = hasLyrics };
+        // Titik acuan hanya berubah saat seek, ganti lagu, atau putar/jeda, jadi baris lirik baru tidak mengubahnya.
+        var progress = _positionKnown && _duration is { } duration ? _clock.Snapshot(duration) : null;
+        var shown = _song with
+        {
+            Lyric = lyric,
+            PreviousLyric = previousLyric,
+            NextLyric = nextLyric,
+            HasLyrics = hasLyrics,
+            Progress = progress,
+        };
         if (shown == _shown)
         {
             return;
@@ -344,6 +353,18 @@ public sealed class MediaModule : IIslandModule
                 Publish();
             }
         }
+    }
+
+    // Dipanggil di dalam _gate.
+    private string? LineAt(int index)
+    {
+        if (_lyrics is null || index < 0 || index >= _lyrics.Lines.Count)
+        {
+            return null;
+        }
+
+        var text = _lyrics.Lines[index].Text;
+        return text.Length == 0 ? InstrumentalLyric : text;
     }
 
     private static bool SameTrack(NowPlaying a, NowPlaying b) =>

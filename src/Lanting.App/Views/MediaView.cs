@@ -3,6 +3,8 @@ using Lanting.App.Shell;
 using Lanting.App.Views.Dashboard;
 using Lanting.Core.Island;
 using Lanting.Core.Media;
+using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -20,7 +22,7 @@ namespace Lanting.App.Views;
 /// <summary>
 /// Tampilan lagu: pil kecil berisi gambar album, judul (atau baris lirik), dan visualizer;
 /// <see cref="Page"/> (halaman Musik di dashboard) berisi gambar besar, judul, artis, lirik/nama pemutar,
-/// dan tombol sebelumnya / putar / berikutnya, di atas cahaya lembut berwarna gambar albumnya.
+/// tombol sebelumnya / putar / berikutnya, dan bar progres lagu, di atas cahaya lembut berwarna gambar albumnya.
 /// </summary>
 internal sealed class MediaView : IIslandView
 {
@@ -34,7 +36,11 @@ internal sealed class MediaView : IIslandView
     // Pil kecil lebih lebar saat lagu punya lirik, supaya satu baris lirik muat.
     private const double LyricsCompactWidth = 340;
 
-    private static readonly Color DefaultAccent = Color.FromArgb(255, 0x2D, 0xD4, 0xBF);
+    // Lebar tiga tombol: 38 + 10 + 44 + 10 + 38. Kolom lirik mulai tepat setelahnya, sejajar dengan bar progres.
+    private const double ControlsWidth = 140;
+
+
+    private static readonly Color DefaultAccent = Color.FromArgb(255, 0xE6, 0xE6, 0xE6);
 
     private readonly IMediaControls _controls;
     private readonly IslandTheme _theme;
@@ -45,6 +51,11 @@ internal sealed class MediaView : IIslandView
     private readonly TextBlock _title;
     private readonly TextBlock _artist;
     private readonly TextBlock _subline;
+    private readonly TextBlock _lyricPrevious;
+    private readonly TextBlock _lyricCurrent;
+    private readonly TextBlock _lyricNext;
+    private readonly FrameworkElement _lyricsColumn;
+    private readonly FrameworkElement _info;
     private readonly Button _previous;
     private readonly Button _playPause;
     private readonly FontIcon _playPauseIcon;
@@ -54,6 +65,13 @@ internal sealed class MediaView : IIslandView
     private readonly GradientStop _glowEnd = new() { Offset = 1 };
     private readonly FrameworkElement _songPanel;
     private readonly FrameworkElement _emptyPanel;
+    private readonly TextBlock _elapsed;
+    private readonly TextBlock _total;
+    private readonly Border _progressFill;
+    private readonly FrameworkElement _progressRow;
+    private readonly DispatcherQueueTimer _progressTimer;
+    private PlaybackProgress? _progress;
+    private bool _pageOnScreen;
     private Color _artColor = DefaultAccent;
     private NowPlaying? _song;
     private int _thumbnailVersion;
@@ -78,22 +96,47 @@ internal sealed class MediaView : IIslandView
         Place(compact, _visualizer.Root, 0, 2);
         Compact = compact;
 
-        // Halaman Musik: [gambar besar] judul / artis / lirik ... tombol.
-        _pageArt = new Art(theme, PageHeight - 28, 14);
+        // Halaman Musik: [gambar besar] judul / artis / pemutar | lirik ... tombol.
+        _pageArt = new Art(theme, PageHeight - 28, 8);
         _title = Text(theme.Primary, 16, bold: true);
         _artist = Text(theme.Secondary, 13);
-        _subline = Text(_lyricBrush, 12);
+        _subline = Text(theme.Secondary, 12);
         _subline.Margin = new Thickness(0, 4, 0, 0);
 
         var info = new StackPanel { Spacing = 1 };
         info.Children.Add(_title);
         info.Children.Add(_artist);
         info.Children.Add(_subline);
+        _info = info;
+
+        // Kolom lirik: baris sebelumnya dan berikutnya lebih kecil, baris sekarang berwarna album dan boleh dua baris.
+        _lyricPrevious = Text(theme.Secondary, 11);
+        _lyricPrevious.FontWeight = FontWeights.SemiBold;
+        _lyricCurrent = Text(_lyricBrush, 13, bold: true);
+        _lyricCurrent.FontWeight = FontWeights.Bold;
+        _lyricCurrent.TextWrapping = TextWrapping.WrapWholeWords;
+        _lyricCurrent.MaxLines = 2;
+        _lyricNext = Text(theme.Secondary, 11);
+        _lyricNext.FontWeight = FontWeights.SemiBold;
+        var lyrics = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        lyrics.Children.Add(_lyricPrevious);
+        lyrics.Children.Add(_lyricCurrent);
+        lyrics.Children.Add(_lyricNext);
+        lyrics.Visibility = Visibility.Collapsed;
+        _lyricsColumn = lyrics;
+
+        var top = new Grid { ColumnSpacing = 14 };
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(ControlsWidth) });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Place(top, info, 0, 0);
+        Place(top, lyrics, 0, 1);
+        Grid.SetColumnSpan(info, 2);
 
         _playPauseIcon = Icon(PauseGlyph, 18);
         _playPauseIcon.HorizontalAlignment = HorizontalAlignment.Center;
         _previous = RoundButton(theme, PreviousGlyph, "Lagu sebelumnya", 38, 16);
-        _playPause = Pressable(_playPauseIcon, "Putar / jeda", 22, theme.Primary, theme.Secondary, theme.Tertiary, theme.Inverse);
+        // Tombol utama memakai warna album, sama dengan bar progres dan lirik.
+        _playPause = Pressable(_playPauseIcon, "Putar / jeda", 22, theme.Control, theme.ControlHover, theme.ControlPressed, theme.Primary);
         _playPause.Width = 44;
         _playPause.Height = 44;
         _next = RoundButton(theme, NextGlyph, "Lagu berikutnya", 38, 16);
@@ -106,9 +149,48 @@ internal sealed class MediaView : IIslandView
         buttons.Children.Add(_playPause);
         buttons.Children.Add(_next);
 
-        var details = new Grid();
-        details.Children.Add(info);
-        details.Children.Add(buttons);
+        // Bar progres di kanan tombol: "1:23 ━━━━━━━━ 3:45". Disembunyikan bila pemutar tidak memberi durasi.
+        _elapsed = Text(theme.Secondary, 11);
+        _total = Text(theme.Secondary, 11);
+        _elapsed.VerticalAlignment = VerticalAlignment.Center;
+        _total.VerticalAlignment = VerticalAlignment.Center;
+        _progressFill = new Border { CornerRadius = new CornerRadius(2), Background = _lyricBrush, HorizontalAlignment = HorizontalAlignment.Left, Width = 0 };
+        var track = new Grid
+        {
+            Height = 4,
+            CornerRadius = new CornerRadius(2),
+            Background = theme.ControlHover,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { _progressFill },
+        };
+        track.SizeChanged += (_, _) => ShowProgress();
+
+        var progressRow = new Grid { ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        progressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Place(progressRow, _elapsed, 0, 0);
+        Place(progressRow, track, 0, 1);
+        Place(progressRow, _total, 0, 2);
+        progressRow.Visibility = Visibility.Collapsed;
+        _progressRow = progressRow;
+
+        var bottomRow = new Grid { ColumnSpacing = 14, VerticalAlignment = VerticalAlignment.Bottom };
+        bottomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        bottomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Place(bottomRow, buttons, 0, 0);
+        Place(bottomRow, progressRow, 0, 1);
+
+        _progressTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        _progressTimer.IsRepeating = false;
+        _progressTimer.Tick += (_, _) => ShowProgress();
+
+        // Dua baris grid supaya lirik dua baris terpotong, bukan menimpa tombol.
+        var details = new Grid { RowSpacing = 6 };
+        details.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        details.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Place(details, top, 0, 0);
+        Place(details, bottomRow, 1, 0);
 
         var song = new Grid { ColumnSpacing = 16 };
         song.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -169,6 +251,13 @@ internal sealed class MediaView : IIslandView
     /// <summary>Dari pengaturan: visualizer bergerak atau tidak.</summary>
     public void SetVisualizerEnabled(bool enabled) => _visualizer.SetEnabled(enabled);
 
+    /// <summary>Halaman Musik mulai/berhenti terlihat; bar progres hanya berdetak selama terlihat.</summary>
+    public void SetPageOnScreen(bool onScreen)
+    {
+        _pageOnScreen = onScreen;
+        ShowProgress();
+    }
+
     /// <summary>Tidak ada lagu (pemutar ditutup): halaman Musik menampilkan keadaan kosong.</summary>
     public void ShowEmpty()
     {
@@ -176,6 +265,8 @@ internal sealed class MediaView : IIslandView
         _songPanel.Visibility = Visibility.Collapsed;
         _emptyPanel.Visibility = Visibility.Visible;
         _visualizer.SetPlaying(false);
+        _progress = null;
+        ShowProgress();
         _artColor = DefaultAccent;
         ApplyColor(glow: false);
     }
@@ -216,13 +307,13 @@ internal sealed class MediaView : IIslandView
             Motion.Pop(_compactTitle);
         }
 
-        var subline = song.Lyric ?? song.AppName;
-        if (newTrack || subline != _subline.Text)
+        if (newTrack || song.AppName != _subline.Text)
         {
-            _subline.Text = subline;
-            _subline.Foreground = song.Lyric is null ? _theme.Tertiary : _lyricBrush;
+            _subline.Text = song.AppName;
             Motion.Pop(_subline);
         }
+
+        ShowLyrics(song, newTrack);
 
         _visualizer.SetPlaying(song.IsPlaying);
         Motion.FadeTo(_visualizer.Root, song.IsPlaying ? 1f : 0.5f);
@@ -234,16 +325,77 @@ internal sealed class MediaView : IIslandView
         _previous.Opacity = song.CanPrevious ? 1 : 0.4;
         _next.Opacity = song.CanNext ? 1 : 0.4;
 
+        _progress = song.Progress;
+        ShowProgress();
+
         if (!ReferenceEquals(song.Thumbnail, previous?.Thumbnail) || previous is null)
         {
             _ = LoadThumbnailAsync(song.Thumbnail);
         }
     }
 
+    /// <summary>Kolom lirik muncul hanya bila lagu punya lirik; tanpa lirik, info lagu memakai seluruh lebar.</summary>
+    private void ShowLyrics(NowPlaying song, bool newTrack)
+    {
+        var visible = song.HasLyrics;
+        if (visible != (_lyricsColumn.Visibility == Visibility.Visible))
+        {
+            _lyricsColumn.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            Grid.SetColumnSpan(_info, visible ? 1 : 2);
+        }
+
+        if (!visible)
+        {
+            return;
+        }
+
+        // Sebelum baris pertama (intro), baris sekarang ditandai not balok.
+        var current = song.Lyric ?? MediaModule.InstrumentalLyric;
+        if (newTrack || current != _lyricCurrent.Text)
+        {
+            _lyricPrevious.Text = song.PreviousLyric ?? string.Empty;
+            _lyricCurrent.Text = current;
+            _lyricNext.Text = song.NextLyric ?? string.Empty;
+            Motion.Pop(_lyricsColumn);
+        }
+    }
+
+    /// <summary>Detak berikutnya jatuh tepat saat detik berganti, hanya bila lagu diputar dan halaman terlihat.</summary>
+    private void ShowProgress()
+    {
+        _progressTimer.Stop();
+        if (_progress is not { } progress)
+        {
+            _progressRow.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        _progressRow.Visibility = Visibility.Visible;
+        var position = progress.PositionAt(DateTimeOffset.UtcNow);
+        _elapsed.Text = Minutes(position);
+        _total.Text = Minutes(progress.Duration);
+        if (_progressFill.Parent is FrameworkElement track)
+        {
+            _progressFill.Width = track.ActualWidth * (position / progress.Duration);
+        }
+
+        if (_pageOnScreen && progress.IsPlaying && position < progress.Duration)
+        {
+            _progressTimer.Interval = TimeSpan.FromMilliseconds(1000 - (position.TotalMilliseconds % 1000) + 20);
+            _progressTimer.Start();
+        }
+    }
+
+    /// <summary>"3:07", atau "1:02:07" untuk yang lebih dari satu jam.</summary>
+    private static string Minutes(TimeSpan time) =>
+        time.TotalHours >= 1 ? $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}" : $"{(int)time.TotalMinutes}:{time.Seconds:00}";
+
     private void ApplyColor(bool glow = true)
     {
         _visualizer.SetColor(_artColor);
-        _lyricBrush.Color = _theme.Readable(_artColor);
+        var accent = _theme.Readable(_artColor);
+        _lyricBrush.Color = accent;
+
         var alpha = (byte)(!glow ? 0 : _theme.IsDark ? 0x55 : 0x40);
         _glowStart.Color = Color.FromArgb(alpha, _artColor.R, _artColor.G, _artColor.B);
         _glowEnd.Color = Color.FromArgb(0, _artColor.R, _artColor.G, _artColor.B);

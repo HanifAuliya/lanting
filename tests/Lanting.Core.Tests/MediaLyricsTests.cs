@@ -42,6 +42,28 @@ public class MediaLyricsTests
     }
 
     [Fact]
+    public async Task Neighbouring_lines_come_with_the_current_line()
+    {
+        var module = await StartAsync();
+        _source.Raise(Song("Spotify.exe", "Lagu A"));
+        _source.RaiseTimeline(new MediaTimeline(TimeSpan.Zero, TimeSpan.FromMinutes(3), _time.GetUtcNow()));
+        WaitForSearch();
+        _lyrics.Complete(Lagu);
+
+        Assert.Null(Last.PreviousLyric);
+        Assert.Equal("Baris satu", Last.NextLyric);
+
+        _time.Advance(TimeSpan.FromSeconds(3));
+        Assert.Equal("Baris satu", Last.PreviousLyric);
+        Assert.Equal("Baris dua", Last.NextLyric);
+
+        _time.Advance(TimeSpan.FromSeconds(2));
+        Assert.Equal(MediaModule.InstrumentalLyric, Last.PreviousLyric);
+        Assert.Null(Last.NextLyric);
+        await module.StopAsync();
+    }
+
+    [Fact]
     public async Task Seek_reported_by_the_player_jumps_to_the_right_line()
     {
         await StartAsync();

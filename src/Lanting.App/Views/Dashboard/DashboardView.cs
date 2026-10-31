@@ -31,6 +31,7 @@ internal sealed class DashboardView
     private readonly List<Tab> _tabs = [];
     private readonly Border _highlight;
     private Tab? _selected;
+    private bool _onScreen;
 
     public DashboardView(
         IslandTheme theme,
@@ -133,6 +134,13 @@ internal sealed class DashboardView
         }
     }
 
+    /// <summary>Dashboard terlihat (island dibuka) atau tidak.</summary>
+    public void SetOnScreen(bool onScreen)
+    {
+        _onScreen = onScreen;
+        UpdateMediaOnScreen();
+    }
+
     public void SetWeatherEnabled(bool enabled) => _weather.SetEnabled(enabled);
 
     private void Select(Tab tab, bool animate)
@@ -156,6 +164,7 @@ internal sealed class DashboardView
 
         tab.Page.Visibility = Visibility.Visible;
         tab.Refresh?.Invoke();
+        UpdateMediaOnScreen();
 
         // Sorotan menu meluncur ke menu yang dipilih.
         var visual = ElementCompositionPreview.GetElementVisual(_highlight);
@@ -197,6 +206,9 @@ internal sealed class DashboardView
         button.Height = TabHeight;
         return button;
     }
+
+    private void UpdateMediaOnScreen() =>
+        _media.SetPageOnScreen(_onScreen && ReferenceEquals(_selected?.Page, _media.Page));
 
     private void ShowTime(DateTime now) => _time.Text = ClockTicker.Time(now);
 
