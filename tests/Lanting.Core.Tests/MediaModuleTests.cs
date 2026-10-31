@@ -23,7 +23,7 @@ public class MediaModuleTests
         Assert.Equal(MediaModule.NowPlayingKey, shown.Key);
         Assert.Equal(IslandPriority.Ambient, shown.Priority);
         Assert.Null(shown.Duration);
-        Assert.Equal(song, shown.Payload);
+        Assert.Equal(song with { LyricsStatus = LyricsStatus.Searching }, shown.Payload);
     }
 
     [Fact]

@@ -55,6 +55,7 @@ internal sealed class MediaView : IIslandView
     private readonly TextBlock _lyricCurrent;
     private readonly TextBlock _lyricNext;
     private readonly FrameworkElement _lyricsColumn;
+    private readonly TextBlock _lyricsMessage;
     private readonly FrameworkElement _info;
     private readonly Button _previous;
     private readonly Button _playPause;
@@ -124,12 +125,16 @@ internal sealed class MediaView : IIslandView
         lyrics.Children.Add(_lyricNext);
         lyrics.Visibility = Visibility.Collapsed;
         _lyricsColumn = lyrics;
+        _lyricsMessage = Text(theme.Secondary, 12);
+        _lyricsMessage.VerticalAlignment = VerticalAlignment.Center;
+        _lyricsMessage.Visibility = Visibility.Collapsed;
 
         var top = new Grid { ColumnSpacing = 14 };
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(ControlsWidth) });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Place(top, info, 0, 0);
         Place(top, lyrics, 0, 1);
+        Place(top, _lyricsMessage, 0, 1);
         Grid.SetColumnSpan(info, 2);
 
         _playPauseIcon = Icon(PauseGlyph, 18);
@@ -337,14 +342,25 @@ internal sealed class MediaView : IIslandView
     /// <summary>Kolom lirik muncul hanya bila lagu punya lirik; tanpa lirik, info lagu memakai seluruh lebar.</summary>
     private void ShowLyrics(NowPlaying song, bool newTrack)
     {
-        var visible = song.HasLyrics;
-        if (visible != (_lyricsColumn.Visibility == Visibility.Visible))
+        string? message = song.HasLyrics ? null : song.LyricsStatus switch
         {
-            _lyricsColumn.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-            Grid.SetColumnSpan(_info, visible ? 1 : 2);
+            LyricsStatus.Searching => "Mencari lirik…",
+            LyricsStatus.NotFound => "Lirik tidak tersedia",
+            LyricsStatus.Failed => "Lirik gagal dimuat",
+            _ => null,
+        };
+
+        _lyricsColumn.Visibility = song.HasLyrics ? Visibility.Visible : Visibility.Collapsed;
+        _lyricsMessage.Visibility = message is not null ? Visibility.Visible : Visibility.Collapsed;
+        Grid.SetColumnSpan(_info, song.HasLyrics || message is not null ? 1 : 2);
+
+        if (message is not null && message != _lyricsMessage.Text)
+        {
+            _lyricsMessage.Text = message;
+            Motion.Pop(_lyricsMessage);
         }
 
-        if (!visible)
+        if (!song.HasLyrics)
         {
             return;
         }

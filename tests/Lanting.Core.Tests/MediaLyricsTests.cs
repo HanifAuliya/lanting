@@ -63,6 +63,48 @@ public class MediaLyricsTests
         await module.StopAsync();
     }
 
+
+    [Fact]
+    public async Task Lyrics_status_follows_the_search()
+    {
+        await StartAsync();
+        _source.Raise(Song("Spotify.exe", "Lagu A"));
+        Assert.Equal(LyricsStatus.Searching, Last.LyricsStatus);
+
+        WaitForSearch();
+        _lyrics.Complete(null);
+        Assert.Equal(LyricsStatus.NotFound, Last.LyricsStatus);
+
+        _source.Raise(Song("Spotify.exe", "Lagu B"));
+        WaitForSearch();
+        _lyrics.Complete(Lagu);
+        Assert.Equal(LyricsStatus.Found, Last.LyricsStatus);
+    }
+
+    [Fact]
+    public async Task Failed_search_is_reported()
+    {
+        await StartAsync();
+        _source.Raise(Song("Spotify.exe", "Lagu A"));
+        WaitForSearch();
+
+        _lyrics.Fail(new InvalidOperationException("502 (Bad Gateway)"));
+
+        Assert.Equal(LyricsStatus.Failed, Last.LyricsStatus);
+    }
+
+    [Fact]
+    public async Task Turning_lyrics_off_reports_off()
+    {
+        var module = await StartAsync();
+        _source.Raise(Song("Spotify.exe", "Lagu A"));
+
+        module.LyricsEnabled = false;
+
+        Assert.Equal(LyricsStatus.Off, Last.LyricsStatus);
+    }
+
+
     [Fact]
     public async Task Seek_reported_by_the_player_jumps_to_the_right_line()
     {
@@ -195,6 +237,19 @@ public class MediaLyricsTests
         }
 
         public void Complete(SyncedLyrics? lyrics) => Resolve(Pending!, lyrics);
+        public void Fail(Exception error)
+        {
+            var context = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(null);
+            try
+            {
+                Pending!.TrySetException(error);
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(context);
+            }
+        }
     }
 
     // Pencarian lirik baru dimulai setelah jeda singkat.

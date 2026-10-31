@@ -39,6 +39,7 @@ public sealed record NowPlaying(
 
     /// <summary>Lagu ini punya lirik bertanda waktu dan posisinya diketahui, jadi <see cref="Lyric"/> akan terisi.</summary>
     public bool HasLyrics { get; init; }
+    public LyricsStatus LyricsStatus { get; init; }
 
     /// <summary>Posisi dan panjang lagu untuk bar progres; <c>null</c> bila pemutar tidak memberinya (Firefox/Zen).</summary>
     public PlaybackProgress? Progress { get; init; }

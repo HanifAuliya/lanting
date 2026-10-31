@@ -38,6 +38,7 @@ public sealed class MediaModule : IIslandModule
     private SyncedLyrics? _lyrics;
     private bool _positionKnown;
     private bool _lyricsEnabled = true;
+    private LyricsStatus _lyricsStatus;
     private ITimer? _lineTimer;
     private ITimer? _searchTimer;
     private TimeSpan? _duration;
@@ -91,6 +92,7 @@ public sealed class MediaModule : IIslandModule
                     _fetch?.Cancel();
                     _fetch = null;
                     _lyrics = null;
+                    _lyricsStatus = LyricsStatus.Off;
                 }
 
                 Publish();
@@ -214,6 +216,7 @@ public sealed class MediaModule : IIslandModule
         _searchTimer = _lyricsEnabled
             ? _time.CreateTimer(_ => OnSearchTimer(), null, LyricsSearchDelay, Timeout.InfiniteTimeSpan)
             : null;
+        _lyricsStatus = _lyricsEnabled ? LyricsStatus.Searching : LyricsStatus.Off;
     }
 
     private void OnSearchTimer()
@@ -231,6 +234,10 @@ public sealed class MediaModule : IIslandModule
             if (query is not null)
             {
                 FetchLyrics(query);
+            } else
+            {
+                _lyricsStatus = LyricsStatus.NotFound;
+                Publish();
             }
         }
     }
@@ -257,6 +264,14 @@ public sealed class MediaModule : IIslandModule
         catch (Exception ex)
         {
             LyricsFailed?.Invoke(this, ex);
+            lock (_gate)
+            {
+                if (!fetch.IsCancellationRequested && _host is not null)
+                {
+                    _lyricsStatus = LyricsStatus.Failed;
+                    Publish();
+                }
+            }
             return;
         }
 
@@ -269,6 +284,7 @@ public sealed class MediaModule : IIslandModule
             }
 
             _lyrics = lyrics;
+            _lyricsStatus = lyrics is null ? LyricsStatus.NotFound : LyricsStatus.Found;
             Publish();
         }
     }
@@ -285,6 +301,7 @@ public sealed class MediaModule : IIslandModule
         _lineTimer = null;
         _lyrics = null;
         _positionKnown = false;
+        _lyricsStatus = LyricsStatus.Off;
     }
 
     // Dipanggil di dalam _gate. Host dipanggil di dalam lock supaya urutan update dari beberapa thread
@@ -333,6 +350,7 @@ public sealed class MediaModule : IIslandModule
             PreviousLyric = previousLyric,
             NextLyric = nextLyric,
             HasLyrics = hasLyrics,
+            LyricsStatus = _lyricsStatus,
             Progress = progress,
         };
         if (shown == _shown)
