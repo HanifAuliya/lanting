@@ -119,16 +119,26 @@ public partial class App : Application
         services.AddSingleton<SmtcMediaSource>();
         services.AddSingleton<IMediaSource>(sp => sp.GetRequiredService<SmtcMediaSource>());
         services.AddSingleton<IMediaControls>(sp => sp.GetRequiredService<SmtcMediaSource>());
-        services.AddSingleton<ILyricsProvider>(_ => new LrcLibClient(new HttpClient
-        {
-            BaseAddress = new Uri("https://lrclib.net/"),
-            Timeout = TimeSpan.FromSeconds(10),
-            DefaultRequestHeaders =
+        services.AddSingleton<ILyricsProvider>(_ => new FallbackLyricsProvider(
+            new LrcLibClient(new HttpClient
             {
-                // LRCLIB meminta aplikasi memperkenalkan diri lewat User-Agent.
-                { "User-Agent", $"Lanting/{typeof(App).Assembly.GetName().Version?.ToString(3)} (https://github.com/HanifAuliya/lanting)" },
-            },
-        }));
+                BaseAddress = new Uri("https://lrclib.net/"),
+                Timeout = TimeSpan.FromSeconds(10),
+                DefaultRequestHeaders =
+                {
+                    // LRCLIB meminta aplikasi memperkenalkan diri lewat User-Agent.
+                    { "User-Agent", $"Lanting/{typeof(App).Assembly.GetName().Version?.ToString(3)} (https://github.com/HanifAuliya/lanting)" },
+                },
+            }),
+            new NetEaseClient(new HttpClient
+            {
+                BaseAddress = new Uri("https://music.163.com/"),
+                Timeout = TimeSpan.FromSeconds(10),
+                DefaultRequestHeaders =
+                {
+                    {"Referer", "https://music.163.com/"},
+                },
+            })));
         services.AddSingleton<MediaModule>();
         services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<MediaModule>());
         services.AddSingleton<MediaView>();
