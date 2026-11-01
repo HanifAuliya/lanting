@@ -118,6 +118,47 @@ public class LyricsFallbackTests
         Assert.Equal(0, second.Calls);
     }
 
+        [Fact]
+    public async Task Found_lyrics_are_remembered()
+    {
+        var first = new FakeProvider(() => Lyrics("lrclib"));
+        var lyrics = new FallbackLyricsProvider(first);
+
+        await lyrics.FindAsync(Query, CancellationToken.None);
+        var again = await lyrics.FindAsync(Query, CancellationToken.None);
+
+        Assert.Equal("lrclib", again?.Lines[0].Text);
+        Assert.Equal(1, first.Calls);
+    }
+
+    [Fact]
+    public async Task Not_found_is_remembered_when_every_source_answered()
+    {
+        var first = new FakeProvider(() => null);
+        var second = new FakeProvider(() => null);
+        var lyrics = new FallbackLyricsProvider(first, second);
+
+        await lyrics.FindAsync(Query, CancellationToken.None);
+        await lyrics.FindAsync(Query, CancellationToken.None);
+
+        Assert.Equal(1, first.Calls);
+        Assert.Equal(1, second.Calls);
+    }
+
+    [Fact]
+    public async Task Not_found_is_searched_again_when_a_source_failed()
+    {
+        var down = new FakeProvider(() => throw new HttpRequestException("502"));
+        var second = new FakeProvider(() => null);
+        var lyrics = new FallbackLyricsProvider(down, second);
+
+        await lyrics.FindAsync(Query, CancellationToken.None);
+        await lyrics.FindAsync(Query, CancellationToken.None);
+
+        Assert.Equal(2, down.Calls);
+    }
+
+
     private static SyncedLyrics Lyrics(string text) => new([new LyricLine(TimeSpan.Zero, text)]);
 
     /// <summary>Sumber lirik palsu: jawabannya ditentukan oleh fungsi yang diberikan test.</summary>
