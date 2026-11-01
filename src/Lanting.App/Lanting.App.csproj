@@ -37,6 +37,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Lanting.Core\Lanting.Core.csproj" />
+    <ProjectReference Include="..\Lanting.Core\Lanting.Core.csproj" SetPlatform="Platform=AnyCPU" />
   </ItemGroup>
 </Project>

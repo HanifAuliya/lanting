@@ -23,7 +23,7 @@ public class MediaModuleTests
         Assert.Equal(MediaModule.NowPlayingKey, shown.Key);
         Assert.Equal(IslandPriority.Ambient, shown.Priority);
         Assert.Null(shown.Duration);
-        Assert.Equal(song, shown.Payload);
+        Assert.Equal(song with { LyricsStatus = LyricsStatus.Searching }, shown.Payload);
     }
 
     [Fact]
@@ -116,6 +116,53 @@ public class MediaModuleTests
         _source.Raise(Song("Spotify.exe", "Lagu A"));
 
         Assert.Empty(_host.Shown);
+    }
+
+    [Fact]
+    public async Task Timeline_gives_the_song_a_progress_that_moves_while_playing()
+    {
+        var time = new Microsoft.Extensions.Time.Testing.FakeTimeProvider();
+        var module = new MediaModule(_source, new NoLyrics(), time);
+        await module.StartAsync(_host, CancellationToken.None);
+        _source.Raise(Song("Spotify.exe", "Lagu A"));
+        Assert.Null(((NowPlaying)_host.Shown[^1].Payload!).Progress);
+
+        _source.RaiseTimeline(new MediaTimeline(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(3), time.GetUtcNow()));
+        time.Advance(TimeSpan.FromSeconds(10));
+
+        var progress = ((NowPlaying)_host.Shown[^1].Payload!).Progress;
+        Assert.NotNull(progress);
+        Assert.Equal(TimeSpan.FromMinutes(3), progress.Duration);
+        Assert.Equal(TimeSpan.FromSeconds(40), progress.PositionAt(time.GetUtcNow()));
+
+        _source.Raise(Song("Spotify.exe", "Lagu A") with { IsPlaying = false });
+        time.Advance(TimeSpan.FromSeconds(10));
+
+        progress = ((NowPlaying)_host.Shown[^1].Payload!).Progress!;
+        Assert.False(progress.IsPlaying);
+        Assert.Equal(TimeSpan.FromSeconds(40), progress.PositionAt(time.GetUtcNow()));
+    }
+
+    [Fact]
+    public async Task Player_without_duration_has_no_progress()
+    {
+        var module = new MediaModule(_source, new NoLyrics(), TimeProvider.System);
+        await module.StartAsync(_host, CancellationToken.None);
+        _source.Raise(Song("Firefox", "Lagu A"));
+
+        _source.RaiseTimeline(new MediaTimeline(TimeSpan.Zero, TimeSpan.Zero, DateTimeOffset.UtcNow));
+
+        Assert.Null(((NowPlaying)_host.Shown[^1].Payload!).Progress);
+    }
+
+    [Fact]
+    public void Progress_stays_within_the_song()
+    {
+        var at = DateTimeOffset.UnixEpoch;
+        var progress = new PlaybackProgress(TimeSpan.FromSeconds(170), TimeSpan.FromSeconds(180), at, IsPlaying: true);
+
+        Assert.Equal(TimeSpan.FromSeconds(180), progress.PositionAt(at.AddMinutes(5)));
+        Assert.Equal(TimeSpan.FromSeconds(170), progress.PositionAt(at.AddSeconds(-5)));
     }
 
     [Theory]

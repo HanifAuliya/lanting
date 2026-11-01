@@ -38,6 +38,9 @@ public sealed class PlaybackClock
         _baseAt = now;
     }
 
+    /// <summary>Titik acuan jam ini sebagai progres lagu berdurasi <paramref name="duration"/>.</summary>
+    public PlaybackProgress Snapshot(TimeSpan duration) => new(_base, duration, _baseAt, _playing);
+
     public void SetPlaying(bool playing)
     {
         if (playing == _playing)

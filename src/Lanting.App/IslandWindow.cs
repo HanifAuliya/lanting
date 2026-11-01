@@ -157,6 +157,7 @@ internal sealed partial class IslandWindow : Window
     {
         var opened = state == IslandState.Expanded && _appliedState != IslandState.Expanded;
         _appliedState = state;
+        _dashboard.SetOnScreen(state == IslandState.Expanded);
         if (state == IslandState.Hidden)
         {
             _chrome.SetVisible(false);

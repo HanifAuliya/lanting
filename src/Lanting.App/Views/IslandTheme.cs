@@ -87,13 +87,25 @@ internal sealed class IslandTheme
     }
 
     /// <summary>
-    /// Warna dari gambar album dibuat cukup kontras untuk teks: di tema terang, warna yang terlalu terang digelapkan.
+    /// Warna dari gambar album dibuat cukup kontras untuk teks: di tema terang yang terlalu terang digelapkan, di tema gelap yang terlalu gelap diterangkan.
     /// </summary>
     public Color Readable(Color color)
     {
         if (IsDark)
         {
-            return color;
+            var brightness = Luminance(color);
+            if (brightness >= 0.6)
+            {
+                return color;
+            }
+
+            var mix = (0.6 - brightness) / (1 - brightness);
+            return Color.FromArgb(
+                255,
+                (byte)(color.R + ((255 - color.R) * mix)),
+                (byte)(color.G + ((255 - color.G) * mix)),
+                (byte)(color.B + ((255 - color.B) * mix))
+            );
         }
 
         var luminance = Luminance(color);

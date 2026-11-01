@@ -12,11 +12,10 @@ public interface ILyricsProvider
 
 /// <summary>
 /// Lirik dari LRCLIB (https://lrclib.net), layanan lirik gratis tanpa API key.
-/// Hasil (termasuk "tidak ketemu") disimpan di memori supaya lagu yang sama tidak dicari berulang.
 /// </summary>
 public sealed class LrcLibClient : ILyricsProvider
 {
-    private const int CacheSize = 50;
+    // private const int CacheSize = 50;
 
     // Durasi di LRCLIB dibulatkan ke detik dan versi lagu bisa beda sedikit; di luar selisih ini dianggap versi lain.
     private static readonly TimeSpan DurationTolerance = TimeSpan.FromSeconds(4);
@@ -24,9 +23,6 @@ public sealed class LrcLibClient : ILyricsProvider
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
 
     private readonly HttpClient _http;
-    private readonly Lock _gate = new();
-    private readonly Dictionary<TrackQuery, SyncedLyrics?> _cache = [];
-    private readonly Queue<TrackQuery> _cacheOrder = new();
 
     /// <param name="http">HttpClient dengan BaseAddress https://lrclib.net/ dan User-Agent aplikasi.</param>
     public LrcLibClient(HttpClient http)
@@ -36,32 +32,11 @@ public sealed class LrcLibClient : ILyricsProvider
 
     public async Task<SyncedLyrics?> FindAsync(TrackQuery query, CancellationToken cancellationToken)
     {
-        lock (_gate)
-        {
-            if (_cache.TryGetValue(query, out var cached))
-            {
-                return cached;
-            }
-        }
-
         var match = Pick(await SearchAsync($"track_name={Uri.EscapeDataString(query.Title)}&artist_name={Uri.EscapeDataString(query.Artist)}", cancellationToken).ConfigureAwait(false), query)
             ?? Pick(await SearchAsync($"q={Uri.EscapeDataString(query.SearchText)}", cancellationToken).ConfigureAwait(false), query);
-        var lyrics = LrcParser.Parse(match?.SyncedLyrics);
-
-        lock (_gate)
-        {
-            if (_cache.TryAdd(query, lyrics))
-            {
-                _cacheOrder.Enqueue(query);
-                if (_cacheOrder.Count > CacheSize)
-                {
-                    _cache.Remove(_cacheOrder.Dequeue());
-                }
-            }
-        }
-
-        return lyrics;
+        return LrcParser.Parse(match?.SyncedLyrics);
     }
+
 
     private async Task<List<LrcLibTrack>> SearchAsync(string parameters, CancellationToken cancellationToken)
     {
