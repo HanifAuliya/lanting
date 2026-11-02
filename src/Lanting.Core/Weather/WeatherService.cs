@@ -29,6 +29,27 @@ public sealed record WeatherReport(
     public WeatherKind Kind => WeatherCodes.Kind(Code);
 
     public string Description => WeatherCodes.Describe(Code);
+
+    /// <summary>Suhu yang terasa (dengan kelembapan dan angin).</summary>
+    public double? FeelsLikeC { get; init; }
+
+    /// <summary>Kelembapan udara dalam persen.</summary>
+    public int? Humidity { get; init; }
+
+    public double? WindKmh { get; init; }
+
+    /// <summary>Siang (matahari di atas ufuk) atau malam; untuk ikon dan warna kartu.</summary>
+    public bool IsDay { get; init; } = true;
+
+    /// <summary>Beberapa jam ke depan, mulai jam berikutnya.</summary>
+    public IReadOnlyList<HourlyWeather> Hourly { get; init; } = [];
+}
+
+/// <summary>Perkiraan satu jam.</summary>
+/// <param name="Time">Jam lokal di lokasi cuaca.</param>
+public sealed record HourlyWeather(DateTime Time, double TemperatureC, int Code, bool IsDay)
+{
+    public WeatherKind Kind => WeatherCodes.Kind(Code);
 }
 
 /// <summary>Kode cuaca WMO yang dipakai Open-Meteo, diterjemahkan ke bahasa Indonesia.</summary>
@@ -130,7 +151,10 @@ public sealed class WeatherService
 
     private async Task<WeatherReport> FetchWeatherAsync(GeoLocation location, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var url = $"https://api.open-meteo.com/v1/forecast?{LocationService.Coordinates(location)}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1";
+        var url = $"https://api.open-meteo.com/v1/forecast?{LocationService.Coordinates(location)}"
+            + "&current=temperature_2m,weather_code,apparent_temperature,relative_humidity_2m,wind_speed_10m,is_day"
+            + "&hourly=temperature_2m,weather_code,is_day&forecast_hours=7"
+            + "&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1";
         var forecast = await _http.GetFromJsonAsync<OpenMeteoForecast>(url, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Jawaban Open-Meteo kosong.");
         if (forecast.Current is not { } current)
@@ -144,16 +168,59 @@ public sealed class WeatherService
             current.WeatherCode,
             forecast.Daily?.Max?.FirstOrDefault(),
             forecast.Daily?.Min?.FirstOrDefault(),
-            now);
+            now)
+        {
+            FeelsLikeC = current.FeelsLike,
+            Humidity = current.Humidity,
+            WindKmh = current.Wind,
+            IsDay = current.IsDay != 0,
+            Hourly = Hours(forecast.Hourly, current.Time),
+        };
+    }
+
+    // Jam-jam setelah jam sekarang (jam pertama dari Open-Meteo adalah jam yang sedang berjalan).
+    private static List<HourlyWeather> Hours(OpenMeteoHourly? hourly, string? now)
+    {
+        if (hourly?.Time is not { } times || hourly.Temperature is not { } temperatures || hourly.Code is not { } codes)
+        {
+            return [];
+        }
+
+        var current = DateTime.TryParse(now, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : DateTime.MinValue;
+        var hours = new List<HourlyWeather>();
+        for (var i = 0; i < times.Length && i < temperatures.Length && i < codes.Length; i++)
+        {
+            if (DateTime.TryParse(times[i], System.Globalization.CultureInfo.InvariantCulture, out var time)
+                && time > current
+                && temperatures[i] is { } temperature
+                && codes[i] is { } code)
+            {
+                hours.Add(new HourlyWeather(time, temperature, code, hourly.IsDay?.ElementAtOrDefault(i) != 0));
+            }
+        }
+
+        return hours;
     }
 
     internal sealed record OpenMeteoForecast(
         [property: JsonPropertyName("current")] OpenMeteoCurrent? Current,
+        [property: JsonPropertyName("hourly")] OpenMeteoHourly? Hourly,
         [property: JsonPropertyName("daily")] OpenMeteoDaily? Daily);
 
     internal sealed record OpenMeteoCurrent(
         [property: JsonPropertyName("temperature_2m")] double Temperature,
-        [property: JsonPropertyName("weather_code")] int WeatherCode);
+        [property: JsonPropertyName("weather_code")] int WeatherCode,
+        [property: JsonPropertyName("time")] string? Time = null,
+        [property: JsonPropertyName("apparent_temperature")] double? FeelsLike = null,
+        [property: JsonPropertyName("relative_humidity_2m")] int? Humidity = null,
+        [property: JsonPropertyName("wind_speed_10m")] double? Wind = null,
+        [property: JsonPropertyName("is_day")] int IsDay = 1);
+
+    internal sealed record OpenMeteoHourly(
+        [property: JsonPropertyName("time")] string[]? Time,
+        [property: JsonPropertyName("temperature_2m")] double?[]? Temperature,
+        [property: JsonPropertyName("weather_code")] int?[]? Code,
+        [property: JsonPropertyName("is_day")] int[]? IsDay);
 
     internal sealed record OpenMeteoDaily(
         [property: JsonPropertyName("temperature_2m_max")] double?[]? Max,

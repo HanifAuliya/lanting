@@ -36,6 +36,28 @@ public class WeatherTests
     }
 
     [Fact]
+    public async Task Details_and_the_next_hours_are_read()
+    {
+        _handler.Reply("ipwho.is", IpJson);
+        _handler.Reply("open-meteo", """
+            { "current": { "time": "2026-11-02T09:15", "temperature_2m": 30.1, "weather_code": 2, "apparent_temperature": 34.6,
+                           "relative_humidity_2m": 74, "wind_speed_10m": 9.4, "is_day": 1 },
+              "hourly": { "time": ["2026-11-02T09:00", "2026-11-02T10:00", "2026-11-02T11:00"],
+                          "temperature_2m": [29.8, 31.0, 32.2], "weather_code": [2, 3, 61], "is_day": [1, 1, 1] },
+              "daily": { "temperature_2m_max": [32.4], "temperature_2m_min": [24.9] } }
+            """);
+
+        var report = await Service().GetAsync(CancellationToken.None);
+
+        Assert.NotNull(report);
+        Assert.Equal(34.6, report.FeelsLikeC);
+        Assert.Equal(74, report.Humidity);
+        Assert.True(report.IsDay);
+        Assert.Equal([10, 11], report.Hourly.Select(h => h.Time.Hour));
+        Assert.Equal(WeatherKind.Rain, report.Hourly[1].Kind);
+    }
+
+    [Fact]
     public async Task Fresh_weather_is_reused_without_new_requests()
     {
         _handler.Reply("ipwho.is", IpJson);

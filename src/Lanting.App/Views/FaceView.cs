@@ -16,6 +16,8 @@ namespace Lanting.App.Views;
 /// timer kecil untuk berkedip, melirik, dan mengikuti kursor (10x per detik), dan semuanya berhenti saat wajah tidak terlihat.
 /// Tiap mata punya dua bentuk: kotak membulat (mata biasa) dan lengkungan (^) untuk senang; ekspresi mengatur ukuran,
 /// kemiringan, warna, dan bentuk mana yang terlihat.
+/// Supaya terasa hidup: mata bercahaya, "bernapas" pelan, sedikit memipih saat melirik, dan sesekali melakukan
+/// gerakan kecil acak (kedip dua kali, penasaran, melihat ke atas, tersenyum sebentar, melompat kecil).
 /// </summary>
 internal sealed class FaceView
 {
@@ -31,13 +33,17 @@ internal sealed class FaceView
     private readonly Eye _left;
     private readonly Eye _right;
     private readonly ContainerVisual _eyes;
+    private readonly ContainerVisual _breath;
+    private readonly DropShadow _glow;
     private readonly CompositionColorBrush _brush;
     private readonly FontIcon _bolt;
     private readonly Microsoft.UI.Xaml.Media.SolidColorBrush _boltBrush = new();
     private readonly TextBlock _sleep;
     private readonly DispatcherQueueTimer _blinkTimer;
     private readonly DispatcherQueueTimer _gazeTimer;
+    private readonly DispatcherQueueTimer _whimTimer;
     private readonly Random _random = new();
+    private Vector2 _gaze;
     private Expression _expression = Expression.Neutral;
     private bool _onScreen;
     private bool _followingCursor;
@@ -57,7 +63,27 @@ internal sealed class FaceView
         _right = new Eye(_compositor, _brush, new Vector2(middle + (EyeGap / 2), Box / 2), mirror: true);
         _eyes.Children.InsertAtTop(_left.Root);
         _eyes.Children.InsertAtTop(_right.Root);
-        ElementCompositionPreview.SetElementChildVisual(host, _eyes);
+
+        // Napas: lapisan sendiri supaya tidak bentrok dengan lirikan (Offset) dan kedipan (Scale mata).
+        _breath = _compositor.CreateContainerVisual();
+        _breath.Size = _eyes.Size;
+        _breath.CenterPoint = new Vector3(_eyes.Size / 2, 0);
+        _breath.Children.InsertAtTop(_eyes);
+
+        // Cahaya lembut di sekitar mata, warnanya sama dengan mata.
+        _glow = _compositor.CreateDropShadow();
+        _glow.BlurRadius = 9;
+        _glow.Offset = Vector3.Zero;
+        _glow.Opacity = 0.85f;
+        _glow.Color = theme.EyeColor;
+
+        // Bayangan mengikuti bentuk mata, bukan kotak lapisannya.
+        _glow.SourcePolicy = CompositionDropShadowSourcePolicy.InheritFromVisualContent;
+        var layer = _compositor.CreateLayerVisual();
+        layer.Size = _eyes.Size;
+        layer.Shadow = _glow;
+        layer.Children.InsertAtTop(_breath);
+        ElementCompositionPreview.SetElementChildVisual(host, layer);
 
         // Petir kecil saat charger dicolok, "z" saat tidur.
         _bolt = Icon("\uE945", 10);
@@ -85,6 +111,9 @@ internal sealed class FaceView
         _gazeTimer = dispatcher.CreateTimer();
         _gazeTimer.Interval = TimeSpan.FromMilliseconds(100);
         _gazeTimer.Tick += (_, _) => UpdateGaze();
+        _whimTimer = dispatcher.CreateTimer();
+        _whimTimer.IsRepeating = false;
+        _whimTimer.Tick += (_, _) => Whim();
 
         theme.Changed += (_, _) => Paint();
         Apply(Expression.Neutral, animate: false);
@@ -107,12 +136,16 @@ internal sealed class FaceView
         if (onScreen)
         {
             ScheduleBlink();
+            ScheduleWhim();
             _gazeTimer.Start();
+            Breathe(_expression);
         }
         else
         {
             _blinkTimer.Stop();
+            _whimTimer.Stop();
             _gazeTimer.Stop();
+            _breath.StopAnimation(nameof(Visual.Scale));
         }
     }
 
@@ -165,6 +198,98 @@ internal sealed class FaceView
         {
             Look(Vector2.Zero, 200);
         }
+
+        if (_onScreen)
+        {
+            Breathe(expression);
+        }
+
+        // Ekspresi baru datang dengan lompatan kecil.
+        if (animate && expression is Expression.Happy or Expression.Surprised or Expression.Charging or Expression.Full)
+        {
+            Hop();
+        }
+    }
+
+    // Mata mengembang-mengempis sangat pelan; saat tidur lebih lambat dan dalam.
+    private void Breathe(Expression expression)
+    {
+        var asleep = expression is Expression.Asleep or Expression.Sleepy;
+        var breathe = _compositor.CreateVector3KeyFrameAnimation();
+        breathe.InsertKeyFrame(0f, Vector3.One);
+        breathe.InsertKeyFrame(0.5f, asleep ? new Vector3(1.04f, 0.86f, 1f) : new Vector3(1.02f, 0.94f, 1f));
+        breathe.InsertKeyFrame(1f, Vector3.One);
+        breathe.Duration = TimeSpan.FromMilliseconds(asleep ? 4200 : 3200);
+        breathe.IterationBehavior = AnimationIterationBehavior.Forever;
+        _breath.StartAnimation(nameof(Visual.Scale), breathe);
+    }
+
+    private void Hop()
+    {
+        var hop = _compositor.CreateVector3KeyFrameAnimation();
+        hop.InsertKeyFrame(0f, new Vector3(_gaze, 0));
+        hop.InsertKeyFrame(0.35f, new Vector3(_gaze.X, _gaze.Y - 4, 0));
+        hop.InsertKeyFrame(1f, new Vector3(_gaze, 0), _compositor.CreateCubicBezierEasingFunction(new(0.3f, 1.4f), new(0.5f, 1f)));
+        hop.Duration = TimeSpan.FromMilliseconds(380);
+        _eyes.StartAnimation(nameof(Visual.Offset), hop);
+    }
+
+    private void ScheduleWhim()
+    {
+        _whimTimer.Interval = TimeSpan.FromMilliseconds(_random.Next(9000, 18000));
+        _whimTimer.Start();
+    }
+
+    /// <summary>Gerakan kecil acak saat wajah sedang santai, supaya tidak terlihat seperti gambar diam.</summary>
+    private void Whim()
+    {
+        ScheduleWhim();
+        if (_expression != Expression.Neutral || _followingCursor)
+        {
+            return;
+        }
+
+        switch (_random.Next(5))
+        {
+            case 0:
+                // Kedip dua kali.
+                _left.Blink();
+                _right.Blink();
+                _left.Blink(delay: 260);
+                _right.Blink(delay: 260);
+                break;
+            case 1:
+                // Penasaran: satu mata membesar, satu mengecil, sedikit miring.
+                var left = _random.Next(2) == 0;
+                (left ? _left : _right).Pulse(1.25f, 1400);
+                (left ? _right : _left).Pulse(0.85f, 1400);
+                break;
+            case 2:
+                // Melihat ke atas sebentar.
+                Look(new Vector2(_random.Next(-3, 4), -3), 220);
+                _nextGlance = DateTime.UtcNow.AddMilliseconds(1100);
+                break;
+            case 3:
+                // Tersenyum sebentar.
+                _left.Morph(EyeShape.Arc, Morph);
+                _right.Morph(EyeShape.Arc, Morph);
+                var back = DispatcherQueue.GetForCurrentThread().CreateTimer();
+                back.Interval = TimeSpan.FromMilliseconds(900);
+                back.IsRepeating = false;
+                back.Tick += (_, _) =>
+                {
+                    if (_expression == Expression.Neutral)
+                    {
+                        _left.Morph(EyeShape.Normal, Morph);
+                        _right.Morph(EyeShape.Normal, Morph);
+                    }
+                };
+                back.Start();
+                break;
+            default:
+                Hop();
+                break;
+        }
     }
 
     private void Paint()
@@ -177,6 +302,13 @@ internal sealed class FaceView
             _ => _theme.EyeColor,
         };
         _boltBrush.Color = _theme.EyeColor;
+        var glow = _compositor.CreateColorKeyFrameAnimation();
+        glow.InsertKeyFrame(1f, color);
+        glow.Duration = TimeSpan.FromMilliseconds(250);
+        _glow.StartAnimation(nameof(DropShadow.Color), glow);
+
+        // Di latar terang, cahaya gelap terlihat seperti noda; dibuat jauh lebih tipis.
+        _glow.Opacity = _theme.IsDark ? 0.85f : 0.25f;
         var animation = _compositor.CreateColorKeyFrameAnimation();
         animation.InsertKeyFrame(1f, color);
         animation.Duration = TimeSpan.FromMilliseconds(250);
@@ -242,6 +374,14 @@ internal sealed class FaceView
 
     private void Look(Vector2 offset, double milliseconds)
     {
+        // Lirikan jauh: mata sedikit memipih seperti bergerak cepat, lalu kembali.
+        if (Math.Abs(offset.X - _gaze.X) > 2.5f)
+        {
+            _left.Squash();
+            _right.Squash();
+        }
+
+        _gaze = offset;
         var animation = _compositor.CreateVector3KeyFrameAnimation();
         animation.InsertKeyFrame(1f, new Vector3(offset, 0), _compositor.CreateCubicBezierEasingFunction(new(0.2f, 0.8f), new(0.3f, 1f)));
         animation.Duration = TimeSpan.FromMilliseconds(milliseconds);
@@ -324,13 +464,38 @@ internal sealed class FaceView
             Root.StartAnimation(nameof(Visual.RotationAngleInDegrees), tilt);
         }
 
-        public void Blink()
+        public void Blink(int delay = 0)
         {
             var blink = _compositor.CreateVector3KeyFrameAnimation();
-            blink.InsertKeyFrame(0.45f, new Vector3(1f, 0.1f, 1f));
+            blink.InsertKeyFrame(0f, Vector3.One);
+            blink.InsertKeyFrame(0.45f, new Vector3(1.1f, 0.1f, 1f));
             blink.InsertKeyFrame(1f, Vector3.One);
             blink.Duration = TimeSpan.FromMilliseconds(170);
+            blink.DelayTime = TimeSpan.FromMilliseconds(delay);
             _bodyVisual.StartAnimation(nameof(Visual.Scale), blink);
+        }
+
+        /// <summary>Melebar dan memendek sesaat (gerak cepat).</summary>
+        public void Squash()
+        {
+            var squash = _compositor.CreateVector3KeyFrameAnimation();
+            squash.InsertKeyFrame(0f, Vector3.One);
+            squash.InsertKeyFrame(0.4f, new Vector3(1.18f, 0.84f, 1f));
+            squash.InsertKeyFrame(1f, Vector3.One);
+            squash.Duration = TimeSpan.FromMilliseconds(260);
+            Root.StartAnimation(nameof(Visual.Scale), squash);
+        }
+
+        /// <summary>Membesar/mengecil sebentar lalu kembali (penasaran).</summary>
+        public void Pulse(float scale, int milliseconds)
+        {
+            var pulse = _compositor.CreateVector3KeyFrameAnimation();
+            pulse.InsertKeyFrame(0f, Vector3.One);
+            pulse.InsertKeyFrame(0.15f, new Vector3(scale, scale, 1f));
+            pulse.InsertKeyFrame(0.85f, new Vector3(scale, scale, 1f));
+            pulse.InsertKeyFrame(1f, Vector3.One);
+            pulse.Duration = TimeSpan.FromMilliseconds(milliseconds);
+            Root.StartAnimation(nameof(Visual.Scale), pulse);
         }
 
         private void Animate(CompositionObject target, string property, Vector2 value, TimeSpan duration, CompositionEasingFunction ease)
