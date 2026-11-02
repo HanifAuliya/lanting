@@ -138,14 +138,12 @@ internal sealed class FaceView
             ScheduleBlink();
             ScheduleWhim();
             _gazeTimer.Start();
-            Breathe(_expression);
         }
         else
         {
             _blinkTimer.Stop();
             _whimTimer.Stop();
             _gazeTimer.Stop();
-            _breath.StopAnimation(nameof(Visual.Scale));
         }
     }
 
@@ -199,11 +197,6 @@ internal sealed class FaceView
             Look(Vector2.Zero, 200);
         }
 
-        if (_onScreen)
-        {
-            Breathe(expression);
-        }
-
         // Ekspresi baru datang dengan lompatan kecil.
         if (animate && expression is Expression.Happy or Expression.Surprised or Expression.Charging or Expression.Full)
         {
@@ -211,7 +204,8 @@ internal sealed class FaceView
         }
     }
 
-    // Mata mengembang-mengempis sangat pelan; saat tidur lebih lambat dan dalam.
+    // Satu tarikan napas: mata mengembang-mengempis pelan sekali. Sengaja tidak berulang terus: animasi yang selalu
+    // berjalan membuat cahaya mata digambar ulang 60x per detik (sekitar 14% satu core CPU).
     private void Breathe(Expression expression)
     {
         var asleep = expression is Expression.Asleep or Expression.Sleepy;
@@ -220,7 +214,6 @@ internal sealed class FaceView
         breathe.InsertKeyFrame(0.5f, asleep ? new Vector3(1.04f, 0.86f, 1f) : new Vector3(1.02f, 0.94f, 1f));
         breathe.InsertKeyFrame(1f, Vector3.One);
         breathe.Duration = TimeSpan.FromMilliseconds(asleep ? 4200 : 3200);
-        breathe.IterationBehavior = AnimationIterationBehavior.Forever;
         _breath.StartAnimation(nameof(Visual.Scale), breathe);
     }
 
@@ -244,12 +237,20 @@ internal sealed class FaceView
     private void Whim()
     {
         ScheduleWhim();
+
+        // Ngantuk dan tidur: cukup bernapas pelan.
+        if (_expression is Expression.Sleepy or Expression.Asleep)
+        {
+            Breathe(_expression);
+            return;
+        }
+
         if (_expression != Expression.Neutral || _followingCursor)
         {
             return;
         }
 
-        switch (_random.Next(5))
+        switch (_random.Next(6))
         {
             case 0:
                 // Kedip dua kali.
@@ -285,6 +286,9 @@ internal sealed class FaceView
                     }
                 };
                 back.Start();
+                break;
+            case 4:
+                Breathe(_expression);
                 break;
             default:
                 Hop();
@@ -374,6 +378,14 @@ internal sealed class FaceView
 
     private void Look(Vector2 offset, double milliseconds)
     {
+        // Dibulatkan ke setengah piksel dan dilewati bila hampir sama: tanpa ini, kursor yang diam pun memulai
+        // animasi baru 10x per detik dan compositor tidak pernah istirahat.
+        offset = new Vector2(MathF.Round(offset.X * 2) / 2, MathF.Round(offset.Y * 2) / 2);
+        if (Vector2.Distance(offset, _gaze) < 0.4f)
+        {
+            return;
+        }
+
         // Lirikan jauh: mata sedikit memipih seperti bergerak cepat, lalu kembali.
         if (Math.Abs(offset.X - _gaze.X) > 2.5f)
         {

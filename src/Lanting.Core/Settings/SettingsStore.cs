@@ -36,6 +36,12 @@ public sealed record LantingSettings
     /// <summary>Lokasi otomatis terakhir, supaya jadwal sholat tetap ada saat offline.</summary>
     public GeoLocation? LastAutoLocation { get; init; }
 
+    /// <summary>Pesan WhatsApp (aplikasi dan WhatsApp Web) tampil di island.</summary>
+    public bool WhatsAppNotifications { get; init; } = true;
+
+    /// <summary>Pesan Discord tampil di island.</summary>
+    public bool DiscordNotifications { get; init; } = true;
+
     /// <summary>Notifikasi di island saat masuk waktu sholat.</summary>
     public bool PrayerNotifications { get; init; } = true;
 

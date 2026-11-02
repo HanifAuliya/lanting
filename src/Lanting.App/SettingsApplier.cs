@@ -4,6 +4,7 @@ using Lanting.App.Views.Dashboard;
 using Lanting.Core.Battery;
 using Lanting.Core.Island;
 using Lanting.Core.Media;
+using Lanting.Core.Messages;
 using Lanting.Core.Prayer;
 using Lanting.Core.Settings;
 using Microsoft.UI.Dispatching;
@@ -26,6 +27,7 @@ internal sealed class SettingsApplier : IDisposable
     private readonly PrayerModule _prayer;
     private readonly IslandWindow _window;
     private readonly IdleView _idle;
+    private readonly MessageModule _messages;
     private readonly DispatcherQueue _dispatcher;
     private FullscreenWatcher? _fullscreen;
     private bool _fullscreenNow;
@@ -41,8 +43,10 @@ internal sealed class SettingsApplier : IDisposable
         IslandTheme theme,
         PrayerModule prayer,
         IslandWindow window,
-        IdleView idle)
+        IdleView idle,
+        MessageModule messages)
     {
+        _messages = messages;
         _window = window;
         _idle = idle;
         _prayer = prayer;
@@ -100,6 +104,7 @@ internal sealed class SettingsApplier : IDisposable
         _mediaView.SetVisualizerEnabled(settings.ShowVisualizer);
         _mediaView.SetLyricsPanelVisible(settings.ShowLyricsPanel);
         _prayer.NotificationsEnabled = settings.PrayerNotifications;
+        _messages.UpdateOptions(new MessageOptions { WhatsApp = settings.WhatsAppNotifications, Discord = settings.DiscordNotifications });
 
         // Kota diganti di Pengaturan: jadwal sholat dihitung ulang untuk kota itu.
         if (settings.City != _city)
