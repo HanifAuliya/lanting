@@ -126,6 +126,8 @@ internal sealed class IslandWindowChrome
         return x >= _hitArea.Left && x < _hitArea.Right && y >= _hitArea.Top && y < _hitArea.Bottom;
     }
 
+    public bool IsVisible => _visible;
+
     public void SetVisible(bool visible)
     {
         if (visible == _visible)

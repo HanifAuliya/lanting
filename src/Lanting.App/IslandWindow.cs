@@ -2,6 +2,7 @@ using Lanting.App.Shell;
 using Lanting.App.Views;
 using Lanting.App.Views.Dashboard;
 using Lanting.Core.Island;
+using Lanting.Core.Settings;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -46,6 +47,7 @@ internal sealed partial class IslandWindow : Window
     private IslandState _appliedState;
     private IslandShape _shape;
     private bool _pointerInside;
+    private IslandMode _mode = IslandMode.Notch;
     private double _compactWidth = IslandShape.Compact.Width;
 
     public IslandWindow(
@@ -206,8 +208,31 @@ internal sealed partial class IslandWindow : Window
 
     private void SetRegion(IslandShape shape, bool settled)
     {
+        // Dynamic: pil turun sedikit; celah di atasnya ikut jadi area mouse, jadi menyentuh tepi atas layar tetap membuka pil.
+        var gap = _animator.TopGap;
         var area = settled ? shape : shape.WithOvershoot();
-        _chrome.SetRegion(area.Width, area.Height, shape.Ear, (_shape.Width, _shape.Height));
+        _chrome.SetRegion(area.Width, area.Height + gap, gap > 0 ? 0 : shape.Ear, (_shape.Width, _shape.Height + gap));
+    }
+
+    /// <summary>Dari pengaturan: bentuk notch atau dynamic.</summary>
+    public void SetMode(IslandMode mode)
+    {
+        if (mode == _mode)
+        {
+            return;
+        }
+
+        _mode = mode;
+        var notch = mode == IslandMode.Notch;
+        var animate = _chrome.IsVisible;
+        _animator.SetNotch(notch, animate);
+        var margin = new Thickness(0, _animator.TopGap, 0, 0);
+        _compactHost.Margin = margin;
+        _expandedHost.Margin = margin;
+        _notificationHost.Margin = margin;
+        SetRegion(_shape, settled: false);
+        _settleTimer.Stop();
+        _settleTimer.Start();
     }
 
     private void OnThemeChanged(object? sender, EventArgs e) => ApplyTheme();

@@ -12,6 +12,8 @@ namespace Lanting.App.Shell;
 /// Caranya: elemen pil selalu berukuran maksimum, lalu clip bersudut bulat di atasnya yang dianimasikan.
 /// Telinga di kiri-kanan atas dan garis tepi tipis mengikuti clip itu lewat expression animation,
 /// jadi ketiganya selalu bergerak bersamaan tanpa kode yang berjalan tiap frame.
+/// Dua bentuk: Notch (menempel di atas, dengan telinga) dan Dynamic (kapsul melayang <see cref="IslandShape.DynamicGap"/>
+/// di bawah tepi atas, tanpa telinga). Pergantian bentuk juga dianimasikan dengan spring.
 /// </summary>
 internal sealed class PillAnimator
 {
@@ -32,7 +34,11 @@ internal sealed class PillAnimator
     private readonly CompositionRoundedRectangleGeometry _clip;
     private readonly CompositionColorBrush _earFill;
     private readonly CompositionColorBrush _outline;
+
+    // "Notch": 1 = bentuk notch (telinga terlihat), 0 = dynamic. Dibaca expression telinga dan garis tepi.
+    private readonly CompositionPropertySet _mode;
     private IslandShape _shape;
+    private bool _notch = true;
 
     /// <param name="pill">Elemen pil (berlatar, berukuran <see cref="IslandShape.Max"/>) yang di-clip.</param>
     /// <param name="overlay">Induk pil; telinga dan garis tepi digambar di atasnya.</param>
@@ -41,6 +47,8 @@ internal sealed class PillAnimator
         var visual = ElementCompositionPreview.GetElementVisual(pill);
         _compositor = visual.Compositor;
 
+        _mode = _compositor.CreatePropertySet();
+        _mode.InsertScalar("Notch", 1f);
         _clip = _compositor.CreateRoundedRectangleGeometry();
         Apply(initial);
         visual.Clip = _compositor.CreateGeometricClip(_clip);
@@ -61,6 +69,32 @@ internal sealed class PillAnimator
         StartSpring(nameof(CompositionRoundedRectangleGeometry.Size), SizeOf(shape), spring);
         StartSpring(nameof(CompositionRoundedRectangleGeometry.Offset), OffsetOf(shape), spring);
         StartSpring(nameof(CompositionRoundedRectangleGeometry.CornerRadius), RadiusOf(shape), spring);
+    }
+
+    /// <summary>Jarak isi pil dari atas window: 0 untuk notch, <see cref="IslandShape.DynamicGap"/> untuk dynamic.</summary>
+    public double TopGap => _notch ? 0 : IslandShape.DynamicGap;
+
+    /// <summary>Ganti bentuk notch/dynamic; pil berpindah ke bentuk baru dengan spring.</summary>
+    public void SetNotch(bool notch, bool animate)
+    {
+        if (notch == _notch)
+        {
+            return;
+        }
+
+        _notch = notch;
+        if (!animate)
+        {
+            _mode.InsertScalar("Notch", notch ? 1f : 0f);
+            Apply(_shape);
+            return;
+        }
+
+        var fade = _compositor.CreateScalarKeyFrameAnimation();
+        fade.InsertKeyFrame(1f, notch ? 1f : 0f);
+        fade.Duration = TimeSpan.FromMilliseconds(250);
+        _mode.StartAnimation("Notch", fade);
+        AnimateTo(_shape);
     }
 
     /// <summary>Warna telinga (harus sama dengan latar pil) dan garis tepi.</summary>
@@ -120,7 +154,7 @@ internal sealed class PillAnimator
         visual.Size = new Vector2((float)IslandShape.Max.Width, (float)IslandShape.Max.Height);
         visual.Shapes.Add(shape);
         var clip = _compositor.CreateInsetClip();
-        Follow(clip, nameof(InsetClip.TopInset), EarSize);
+        Follow(clip, nameof(InsetClip.TopInset), $"{EarSize} * mode.Notch");
         visual.Clip = clip;
         return visual;
     }
@@ -153,6 +187,7 @@ internal sealed class PillAnimator
         visual.Shapes.Add(fillShape);
         visual.Shapes.Add(lineShape);
         visual.Clip = _compositor.CreateInsetClip();
+        Follow(visual, nameof(Visual.Opacity), "mode.Notch");
         Follow(visual, nameof(Visual.Size), $"Vector2({EarSize}, {EarSize})");
         Follow(visual, nameof(Visual.Offset), left
             ? $"Vector3(clip.Offset.X - {EarSize}, 0, 0)"
@@ -164,6 +199,7 @@ internal sealed class PillAnimator
     {
         var animation = _compositor.CreateExpressionAnimation(expression);
         animation.SetReferenceParameter("clip", _clip);
+        animation.SetReferenceParameter("mode", _mode);
         target.StartAnimation(property, animation);
     }
 
@@ -184,14 +220,21 @@ internal sealed class PillAnimator
         _clip.StartAnimation(property, animation);
     }
 
-    // Clip dibuat lebih tinggi sebesar jari-jari sudut dan digeser ke atas sejauh itu. Bagian di atas tepi elemen
+    // Notch: clip dibuat lebih tinggi sebesar jari-jari sudut dan digeser ke atas sejauh itu. Bagian di atas tepi elemen
     // terpotong, jadi sudut atas jadi rata (menempel ke tepi layar) dan hanya sudut bawah yang membulat.
-    private static Vector2 SizeOf(IslandShape s) => new((float)s.Width, (float)(s.Height + s.CornerRadius));
+    // Dynamic: clip sebesar pil, turun sedikit dari tepi atas, keempat sudutnya bulat.
+    private Vector2 SizeOf(IslandShape s) => new((float)s.Width, (float)(_notch ? s.Height + s.CornerRadius : s.Height));
 
-    // Pil rata tengah secara horizontal dan menempel di atas.
-    private static Vector2 OffsetOf(IslandShape s) => new((float)((IslandShape.Max.Width - s.Width) / 2), (float)-s.CornerRadius);
+    // Pil rata tengah secara horizontal.
+    private Vector2 OffsetOf(IslandShape s) =>
+        new((float)((IslandShape.Max.Width - s.Width) / 2), (float)(_notch ? -s.CornerRadius : IslandShape.DynamicGap));
 
-    private static Vector2 RadiusOf(IslandShape s) => new((float)s.CornerRadius, (float)s.CornerRadius);
+    // Dynamic: pil kecil jadi kapsul penuh (jari-jari setengah tinggi).
+    private Vector2 RadiusOf(IslandShape s)
+    {
+        var radius = !_notch && s.Height <= 40 ? s.Height / 2 : s.CornerRadius;
+        return new((float)radius, (float)radius);
+    }
 
     private readonly record struct Spring(float DampingRatio, TimeSpan Period);
 }

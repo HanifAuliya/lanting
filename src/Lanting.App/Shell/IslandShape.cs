@@ -21,6 +21,9 @@ internal readonly record struct IslandShape(double Width, double Height, double 
     /// </summary>
     public const double Overshoot = 32;
 
+    /// <summary>Jarak pil dari tepi atas layar dalam bentuk Dynamic (melayang).</summary>
+    public const double DynamicGap = 8;
+
     /// <summary>Lebar dan tinggi telinga dibanding jari-jari sudut bawah (juga tertulis di PillAnimator.EarSize).</summary>
     public const double EarRatio = 0.5;
 

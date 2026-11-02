@@ -25,6 +25,9 @@ internal sealed partial class SettingsWindow : Window
     private static readonly Color CardStrokeDark = Color.FromArgb(0x19, 0x00, 0x00, 0x00);
     private static readonly Color CardStrokeLight = Color.FromArgb(0x0F, 0x00, 0x00, 0x00);
 
+    // Urutannya sama dengan IslandMode.
+    private static readonly string[] ModeNames = ["Notch (menempel di atas)", "Dynamic (melayang)"];
+
     // Urutannya sama dengan IslandBackground.
     private static readonly string[] BackgroundNames = ["Transparan", "Solid", "Hitam pekat"];
 
@@ -50,6 +53,23 @@ internal sealed partial class SettingsWindow : Window
         page.Children.Add(new TextBlock { Text = "Pengaturan", FontSize = 28, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) });
 
         page.Children.Add(Section("Island"));
+
+        var mode = new ComboBox { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
+        foreach (var name in ModeNames)
+        {
+            mode.Items.Add(name);
+        }
+
+        mode.SelectedIndex = (int)settings.Mode;
+        mode.SelectionChanged += (_, _) =>
+        {
+            if (mode.SelectedIndex >= 0)
+            {
+                var chosen = (IslandMode)mode.SelectedIndex;
+                _store.Update(s => s with { Mode = chosen });
+            }
+        };
+        page.Children.Add(Row("Bentuk island", "Notch menyatu dengan tepi atas layar. Dynamic melayang sedikit di bawahnya, seperti di iPhone.", mode));
 
         var background = new ComboBox { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
         foreach (var name in BackgroundNames)

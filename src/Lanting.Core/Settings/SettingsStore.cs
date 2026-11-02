@@ -9,6 +9,9 @@ public sealed record LantingSettings
     /// <summary>Warna latar island.</summary>
     public IslandBackground Background { get; init; } = IslandBackground.Translucent;
 
+    /// <summary>Bentuk island: menempel di tepi atas (notch) atau melayang (dynamic).</summary>
+    public IslandMode Mode { get; init; } = IslandMode.Notch;
+
     /// <summary>Tampilkan pil kecil walau tidak ada lagu.</summary>
     public bool ShowWhenIdle { get; init; } = true;
 
@@ -53,7 +56,18 @@ public sealed record LantingSettings
     {
         LowBatteryPercent = Math.Clamp(LowBatteryPercent, 5, 50),
         Background = Enum.IsDefined(Background) ? Background : IslandBackground.Translucent,
+        Mode = Enum.IsDefined(Mode) ? Mode : IslandMode.Notch,
     };
+}
+
+/// <summary>Bentuk island.</summary>
+public enum IslandMode
+{
+    /// <summary>Menempel di tepi atas layar seperti notch laptop, dengan lengkungan di kedua sudut atas.</summary>
+    Notch,
+
+    /// <summary>Kapsul melayang sedikit di bawah tepi atas, keempat sudutnya bulat, seperti Dynamic Island iPhone.</summary>
+    Dynamic,
 }
 
 /// <summary>Pilihan warna latar island.</summary>
