@@ -18,17 +18,18 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
 | 6. Rilis pertama | Settings, tray, auto-start, installer | selesai |
 | Revisi 1 (v0.2.0) | Menempel di atas, dashboard per menu, tema Windows, halaman Perangkat | selesai |
 | Revisi 2 (v0.3.0) | Jadwal sholat, menu ikon, bentuk Notch/Dynamic, wajah berekspresi | selesai |
+| Revisi 3 (v0.4.0) | Wajah lebih hidup, tampilan Cuaca/Sholat/Perangkat/Aplikasi dirapikan | selesai |
 
 ## Fitur
 
 - **Dua bentuk**: **Notch** yang menempel di tepi atas layar, atau **Dynamic** yang melayang sedikit di bawahnya.
-- **Wajah berekspresi** saat tidak ada lagu, bergantian dengan jam: berkedip, melirik, mengikuti kursor, senang, ngantuk, tidur, cemas saat baterai laptop lemah, merah saat hampir habis, hijau saat penuh. Warnanya mengikuti warna aksen Windows.
+- **Wajah berekspresi** saat tidak ada lagu, bergantian dengan jam (dan versi kecilnya di pojok dashboard): mata bercahaya yang bernapas, berkedip, melirik, mengikuti kursor, sesekali penasaran atau melompat kecil, senang, ngantuk, tidur, cemas saat baterai laptop lemah, merah saat hampir habis, hijau saat penuh. Warnanya mengikuti warna aksen Windows.
 - **Dashboard** saat kursor diam sebentar di atas pil. Di atasnya ada menu tombol ikon, dan setiap menu membuka satu halaman:
   - **Musik**: gambar album dengan cahaya warnanya, judul, lirik, tombol sebelumnya / putar / berikutnya.
-  - **Cuaca**: cuaca saat ini, tanggal, dan seberapa jauh hari ini sudah berjalan.
-  - **Sholat**: jadwal hari ini (Imsak sampai Isya) dihitung di laptop dengan kriteria Kemenag, waktu berikutnya dengan hitung mundur, dan notifikasi "Waktunya Dzuhur" di island.
+  - **Cuaca**: cuaca sekarang dengan warna sesuai cuacanya, suhu terasa, kelembapan, angin, dan perkiraan beberapa jam ke depan.
+  - **Sholat**: jadwal hari ini (Imsak sampai Isya) dihitung di laptop dengan kriteria Kemenag, waktu berikutnya dengan cincin hitung mundur, dan notifikasi "Waktunya Dzuhur" di island.
   - **Perangkat**: keyboard, mouse, dan perangkat Bluetooth yang tersambung (dongle, Bluetooth, atau kabel) dengan sisa baterainya, plus pengaturan notifikasi baterai. Baterai hanya tampil kalau perangkatnya melaporkan ke Windows; biasanya perangkat Bluetooth bisa, banyak dongle 2.4 GHz tidak.
-  - **Aplikasi**: File Explorer, Unduhan, Kalkulator, Notepad, Task Manager, Setelan Windows.
+  - **Aplikasi**: File Explorer, Unduhan, Kalkulator, Notepad, Task Manager, Setelan, dengan ikon asli aplikasinya.
   - Tombol ⚙️ untuk Pengaturan.
 - **Mengikuti tema Windows**: terang atau gelap, agak transparan, dengan warna aksen Windows. Bisa diganti ke solid atau hitam pekat di Pengaturan.
 - **Lagu yang sedang diputar** (Spotify, YouTube Music, browser, Media Player): gambar album, judul, visualizer.

@@ -26,7 +26,8 @@ internal sealed class DevicesPage
     private readonly InputDeviceWatcher _inputs;
     private readonly SettingsStore _settings;
     private readonly DispatcherQueue _dispatcher;
-    private readonly StackPanel _list = new() { Spacing = 2 };
+    private readonly StackPanel _list = new() { Spacing = 4 };
+    private readonly TextBlock _count;
     private readonly FrameworkElement _empty;
     private readonly Toggle _lowToggle;
     private readonly Toggle _connectionToggle;
@@ -58,7 +59,16 @@ internal sealed class DevicesPage
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
-        var listCard = Card(theme, new Grid { Children = { scroll, _empty } }, padding: 6);
+        _count = Caption(theme);
+        _count.Margin = new Thickness(6, 0, 0, 0);
+        var listBody = new Grid { Children = { scroll, _empty } };
+        var listPanel = new Grid { RowSpacing = 6 };
+        listPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        listPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        listPanel.Children.Add(_count);
+        Grid.SetRow(listBody, 1);
+        listPanel.Children.Add(listBody);
+        var listCard = Card(theme, listPanel, padding: 8);
 
         // Kanan: notifikasi.
         _lowToggle = new Toggle(theme, "Baterai lemah", on => _settings.Update(s => s with { BatteryNotifications = on }));
@@ -137,18 +147,21 @@ internal sealed class DevicesPage
         }
 
         _empty.Visibility = devices.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        _count.Text = $"TERSAMBUNG · {devices.Count(d => d.Connected)}";
     }
 
     private Grid DeviceRow(DeviceEntry device)
     {
+        // Lingkaran ikon berwarna sesuai jenis perangkat.
+        var tint = KindColor(device.Kind);
         var icon = Icon(DeviceGlyph(device.Kind), 15);
-        icon.Foreground = _theme.Primary;
+        icon.Foreground = new SolidColorBrush(_theme.IsDark ? tint : Darken(tint));
         var badge = new Border
         {
-            Width = 32,
-            Height = 32,
-            CornerRadius = new CornerRadius(16),
-            Background = _theme.Control,
+            Width = 34,
+            Height = 34,
+            CornerRadius = new CornerRadius(12),
+            Background = new SolidColorBrush(Color.FromArgb(_theme.IsDark ? (byte)0x33 : (byte)0x26, tint.R, tint.G, tint.B)),
             Child = icon,
         };
 
@@ -168,7 +181,15 @@ internal sealed class DevicesPage
         text.Children.Add(name);
         text.Children.Add(detail);
 
-        var row = new Grid { Height = 44, ColumnSpacing = 10, Padding = new Thickness(6, 0, 10, 0), Opacity = device.Connected ? 1 : 0.55 };
+        var row = new Grid
+        {
+            Height = 46,
+            ColumnSpacing = 10,
+            Padding = new Thickness(6, 0, 10, 0),
+            CornerRadius = new CornerRadius(12),
+            Background = _theme.Surface,
+            Opacity = device.Connected ? 1 : 0.55,
+        };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -221,6 +242,17 @@ internal sealed class DevicesPage
         level.Children.Add(tip);
         return level;
     }
+
+    private static Color KindColor(BatteryDeviceKind kind) => kind switch
+    {
+        BatteryDeviceKind.Keyboard => Color.FromArgb(255, 0xA7, 0x8B, 0xFA),
+        BatteryDeviceKind.Mouse => Color.FromArgb(255, 0x2D, 0xD4, 0xBF),
+        BatteryDeviceKind.Headphones => Color.FromArgb(255, 0xF4, 0x72, 0xB6),
+        BatteryDeviceKind.Gamepad => Color.FromArgb(255, 0x4A, 0xDE, 0x80),
+        _ => Color.FromArgb(255, 0x94, 0xA3, 0xB8),
+    };
+
+    private static Color Darken(Color color) => Color.FromArgb(255, (byte)(color.R * 0.6), (byte)(color.G * 0.6), (byte)(color.B * 0.6));
 
     private static string DeviceGlyph(BatteryDeviceKind kind) => kind switch
     {

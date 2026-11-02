@@ -128,15 +128,18 @@ internal sealed class IslandWindowChrome
 
     public bool IsVisible => _visible;
 
-    /// <summary>Titik di tengah pil (piksel layar), <paramref name="down"/> DIP di bawah tepi atas window.</summary>
-    public NativeMethods.POINT? Anchor(double down)
+    /// <summary>
+    /// Titik di layar (piksel): <paramref name="right"/> DIP dari tengah window ke kanan, <paramref name="down"/> DIP dari tepi atas.
+    /// </summary>
+    public NativeMethods.POINT? Anchor(double down, double right = 0)
     {
         if (!GetWindowRect(_hwnd, out var rect))
         {
             return null;
         }
 
-        return new NativeMethods.POINT { X = (rect.Left + rect.Right) / 2, Y = rect.Top + (int)(down * Scale) };
+        var scale = Scale;
+        return new NativeMethods.POINT { X = ((rect.Left + rect.Right) / 2) + (int)(right * scale), Y = rect.Top + (int)(down * scale) };
     }
 
     public void SetVisible(bool visible)

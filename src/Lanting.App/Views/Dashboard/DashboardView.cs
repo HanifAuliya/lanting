@@ -1,5 +1,6 @@
 using Lanting.App.Battery;
 using Lanting.Core.Battery;
+using Lanting.Core.Face;
 using Lanting.Core.Island;
 using Lanting.Core.Location;
 using Lanting.Core.Prayer;
@@ -41,7 +42,8 @@ internal sealed class DashboardView
         BatteryModule battery,
         InputDeviceWatcher inputs,
         SettingsStore settings,
-        ClockTicker clock)
+        ClockTicker clock,
+        FaceController faces)
     {
         _theme = theme;
         _media = media;
@@ -54,7 +56,7 @@ internal sealed class DashboardView
         _tabs.Add(new Tab("Cuaca", "\uE753", _weather.Root, _weather.Refresh));
         _tabs.Add(new Tab("Sholat", PrayerView.Glyph, prayerPage.Root, prayerPage.Refresh));
         _tabs.Add(new Tab("Perangkat", "\uE772", devices.Root, devices.Refresh));
-        _tabs.Add(new Tab("Aplikasi", "\uE71D", apps.Root));
+        _tabs.Add(new Tab("Aplikasi", "\uE71D", apps.Root, apps.Refresh));
 
         var pages = new Grid { Width = PageWidth, Height = PageHeight };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
@@ -80,7 +82,16 @@ internal sealed class DashboardView
 
         _time = Text(theme.Primary, 15, bold: true);
         _time.VerticalAlignment = VerticalAlignment.Center;
-        _time.Margin = new Thickness(6, 0, 0, 0);
+
+        // Wajah kecil di samping jam; matanya mengikuti kursor saat memilih menu.
+        Face = new FaceView(theme);
+        Face.Root.VerticalAlignment = VerticalAlignment.Center;
+        Face.SetExpression(faces.Current);
+        var dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        faces.Changed += (_, expression) => dispatcher.TryEnqueue(() => Face.SetExpression(expression));
+        var corner = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        corner.Children.Add(Face.Root);
+        corner.Children.Add(_time);
 
         var settingsButton = RoundButton(theme, "\uE713", "Pengaturan", TabSize + 6, IconSize);
         settingsButton.HorizontalAlignment = HorizontalAlignment.Right;
@@ -88,7 +99,7 @@ internal sealed class DashboardView
         settingsButton.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
 
         var header = new Grid { Width = PageWidth, Height = TabSize + 6 };
-        header.Children.Add(_time);
+        header.Children.Add(corner);
         header.Children.Add(menu);
         header.Children.Add(settingsButton);
 
@@ -109,6 +120,9 @@ internal sealed class DashboardView
     public event EventHandler? SettingsRequested;
 
     public FrameworkElement Root { get; }
+
+    /// <summary>Wajah kecil di pojok kiri atas dashboard.</summary>
+    public FaceView Face { get; }
 
     /// <summary>Dashboard baru saja dibuka: baca ulang halaman yang tidak punya event (cuaca, sholat, perangkat).</summary>
     public void OnOpened()
@@ -134,6 +148,7 @@ internal sealed class DashboardView
     public void SetOnScreen(bool onScreen)
     {
         _onScreen = onScreen;
+        Face.SetOnScreen(onScreen);
         UpdateMediaOnScreen();
     }
 
