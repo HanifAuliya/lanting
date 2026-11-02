@@ -25,6 +25,7 @@ internal sealed class SettingsApplier : IDisposable
     private readonly IslandTheme _theme;
     private readonly PrayerModule _prayer;
     private readonly IslandWindow _window;
+    private readonly IdleView _idle;
     private readonly DispatcherQueue _dispatcher;
     private FullscreenWatcher? _fullscreen;
     private bool _fullscreenNow;
@@ -39,9 +40,11 @@ internal sealed class SettingsApplier : IDisposable
         DashboardView dashboard,
         IslandTheme theme,
         PrayerModule prayer,
-        IslandWindow window)
+        IslandWindow window,
+        IdleView idle)
     {
         _window = window;
+        _idle = idle;
         _prayer = prayer;
         _dashboard = dashboard;
         _theme = theme;
@@ -93,6 +96,7 @@ internal sealed class SettingsApplier : IDisposable
         _dashboard.SetWeatherEnabled(settings.ShowWeather);
         _theme.SetBackground(settings.Background);
         _window.SetMode(settings.Mode);
+        _idle.SetFaceEnabled(settings.ShowFace);
         _mediaView.SetVisualizerEnabled(settings.ShowVisualizer);
         _mediaView.SetLyricsPanelVisible(settings.ShowLyricsPanel);
         _prayer.NotificationsEnabled = settings.PrayerNotifications;

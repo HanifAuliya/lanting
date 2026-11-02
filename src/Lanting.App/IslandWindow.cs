@@ -87,6 +87,9 @@ internal sealed partial class IslandWindow : Window
         _animator = new PillAnimator(_pill, _root, initial);
         ApplyTheme();
         _theme.Changed += OnThemeChanged;
+
+        // Mata mengikuti kursor relatif ke tengah pil kecil.
+        _idle.Face.Anchor = () => _chrome.Anchor(_animator.TopGap + (IslandShape.Compact.Height / 2));
         PillAnimator.SetRevealed(_expandedHost, _stateMachine.State == IslandState.Expanded);
         PillAnimator.SetRevealed(_compactHost, _stateMachine.State != IslandState.Expanded);
         PillAnimator.SetRevealed(_notificationHost, false);

@@ -89,6 +89,11 @@ internal sealed partial class SettingsWindow : Window
         page.Children.Add(Row("Latar island", "Terang atau gelap mengikuti tema Windows (Setelan > Personalisasi > Warna).", background));
 
         page.Children.Add(Toggle(
+            "Wajah",
+            "Saat tidak ada lagu, pil kecil bergantian menampilkan mata dan jam. Matanya berekspresi: berkedip, mengikuti kursor, ngantuk, cemas saat baterai lemah.",
+            settings.ShowFace,
+            on => _store.Update(s => s with { ShowFace = on })));
+        page.Children.Add(Toggle(
             "Tampilkan pil saat tidak ada lagu",
             "Pil kecil berisi jam tetap ada di atas layar walau tidak ada yang diputar.",
             settings.ShowWhenIdle,

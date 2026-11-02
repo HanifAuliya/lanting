@@ -1,9 +1,11 @@
 ﻿using Lanting.App.Battery;
+using Lanting.App.Face;
 using Lanting.App.Media;
 using Lanting.App.Shell;
 using Lanting.App.Views;
 using Lanting.App.Views.Dashboard;
 using Lanting.Core.Battery;
+using Lanting.Core.Face;
 using Lanting.Core.Island;
 using Lanting.Core.Location;
 using Lanting.Core.Lyrics;
@@ -66,6 +68,8 @@ public partial class App : Application
             var tray = _services.GetRequiredService<TrayMenu>();
             tray.ExitRequested += async (_, _) => await ShutdownAsync();
             tray.SettingsRequested += (_, _) => OpenSettings();
+
+            _services.GetRequiredService<FaceSignals>().Start();
 
             _fullscreen = new FullscreenWatcher(window, WindowNative.GetWindowHandle(window));
             _services.GetRequiredService<SettingsApplier>().Attach(_fullscreen);
@@ -159,7 +163,11 @@ public partial class App : Application
                 },
             })));
         services.AddSingleton<MediaModule>();
-        services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<MediaModule>());
+        // Tes wajah (LANTING_SMOKE_FACE): lagu yang sedang diputar tidak ditampilkan supaya wajah terlihat.
+        if (Environment.GetEnvironmentVariable("LANTING_SMOKE_FACE") is null)
+        {
+            services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<MediaModule>());
+        }
         services.AddSingleton<MediaView>();
         services.AddSingleton<IIslandView>(sp => sp.GetRequiredService<MediaView>());
 
@@ -186,6 +194,9 @@ public partial class App : Application
         // Dashboard (isi island saat dibuka).
         services.AddSingleton<WeatherService>();
         services.AddSingleton<ClockTicker>();
+        services.AddSingleton<FaceController>();
+        services.AddSingleton<FaceSignals>();
+        services.AddSingleton<FaceView>();
         services.AddSingleton<IdleView>();
         services.AddSingleton<DashboardView>();
 

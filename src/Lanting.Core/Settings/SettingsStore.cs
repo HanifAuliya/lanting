@@ -12,6 +12,9 @@ public sealed record LantingSettings
     /// <summary>Bentuk island: menempel di tepi atas (notch) atau melayang (dynamic).</summary>
     public IslandMode Mode { get; init; } = IslandMode.Notch;
 
+    /// <summary>Wajah (mata) bergantian dengan jam di pil kecil saat tidak ada lagu.</summary>
+    public bool ShowFace { get; init; } = true;
+
     /// <summary>Tampilkan pil kecil walau tidak ada lagu.</summary>
     public bool ShowWhenIdle { get; init; } = true;
 
