@@ -1,35 +1,34 @@
-using System.Numerics;
 using Lanting.App.Battery;
-using Lanting.App.QuickToggles;
 using Lanting.Core.Battery;
 using Lanting.Core.Island;
+using Lanting.Core.Location;
+using Lanting.Core.Prayer;
 using Lanting.Core.Settings;
 using Lanting.Core.Weather;
-using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Media.Animation;
 using static Lanting.App.Views.Dashboard.DashboardStyle;
 
 namespace Lanting.App.Views.Dashboard;
 
 /// <summary>
-/// Isi island saat dibuka (hover). Baris atas: jam, menu (Musik, Cuaca, Kontrol, Perangkat, Aplikasi), dan tombol Pengaturan.
-/// Di bawahnya satu halaman saja, sesuai menu yang dipilih. Berukuran <see cref="Shell.IslandShape.Expanded"/>.
+/// Isi island saat dibuka (hover). Baris atas: jam, menu (Musik, Cuaca, Sholat, Perangkat, Aplikasi), dan tombol Pengaturan.
+/// Menu berupa tombol ikon bulat; yang dipilih melebar dan menampilkan namanya. Di bawahnya satu halaman sesuai menu.
+/// Berukuran <see cref="Shell.IslandShape.Expanded"/>.
 /// </summary>
 internal sealed class DashboardView
 {
-    private const double TabWidth = 84;
-    private const double TabHeight = 28;
-    private const double TabPadding = 3;
+    private const double TabSize = 32;
+    private const double IconSize = 14;
+    private const double LabelGap = 6;
+    private static readonly TimeSpan TabDuration = TimeSpan.FromMilliseconds(280);
 
     private readonly IslandTheme _theme;
     private readonly MediaView _media;
     private readonly WeatherPage _weather;
-    private readonly TogglesPage _toggles;
     private readonly TextBlock _time;
     private readonly List<Tab> _tabs = [];
-    private readonly Border _highlight;
     private Tab? _selected;
     private bool _onScreen;
 
@@ -37,7 +36,8 @@ internal sealed class DashboardView
         IslandTheme theme,
         MediaView media,
         WeatherService weather,
-        IEnumerable<IQuickToggle> toggles,
+        PrayerModule prayer,
+        LocationService location,
         BatteryModule battery,
         InputDeviceWatcher inputs,
         SettingsStore settings,
@@ -46,32 +46,23 @@ internal sealed class DashboardView
         _theme = theme;
         _media = media;
         _weather = new WeatherPage(theme, weather);
-        _toggles = new TogglesPage(theme, toggles);
-        var apps = new AppsPage(theme);
+        var prayerPage = new PrayerPage(theme, prayer, location, clock);
         var devices = new DevicesPage(theme, battery, inputs, settings);
+        var apps = new AppsPage(theme);
 
-        var pages = new Grid { Width = PageWidth, Height = PageHeight };
         _tabs.Add(new Tab("Musik", "\uEC4F", media.Page));
         _tabs.Add(new Tab("Cuaca", "\uE753", _weather.Root, _weather.Refresh));
-        _tabs.Add(new Tab("Kontrol", "\uE9E9", _toggles.Root, _toggles.Refresh));
+        _tabs.Add(new Tab("Sholat", PrayerView.Glyph, prayerPage.Root, prayerPage.Refresh));
         _tabs.Add(new Tab("Perangkat", "\uE772", devices.Root, devices.Refresh));
         _tabs.Add(new Tab("Aplikasi", "\uE71D", apps.Root));
 
-        // Menu: tombol-tombol sama lebar, dengan sorotan yang bergeser ke menu yang dipilih.
-        _highlight = new Border
-        {
-            Width = TabWidth,
-            Height = TabHeight,
-            CornerRadius = new CornerRadius(TabHeight / 2),
-            Background = theme.ControlHover,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        ElementCompositionPreview.SetIsTranslationEnabled(_highlight, true);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+        var pages = new Grid { Width = PageWidth, Height = PageHeight };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
         foreach (var tab in _tabs)
         {
-            tab.Button = TabButton(tab);
-            tab.Button.Click += (_, _) => Select(tab, animate: true);
+            BuildButton(tab);
+            tab.Label!.Opacity = 0;
+            tab.Button!.Click += (_, _) => Select(tab, animate: true);
             buttons.Children.Add(tab.Button);
             tab.Page.Visibility = Visibility.Collapsed;
             pages.Children.Add(tab.Page);
@@ -80,31 +71,36 @@ internal sealed class DashboardView
         var menu = new Border
         {
             Background = theme.Surface,
-            CornerRadius = new CornerRadius((TabHeight / 2) + TabPadding),
-            Padding = new Thickness(TabPadding),
+            CornerRadius = new CornerRadius((TabSize / 2) + 3),
+            Padding = new Thickness(3),
             HorizontalAlignment = HorizontalAlignment.Center,
-            Child = new Grid { Children = { _highlight, buttons } },
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = buttons,
         };
 
         _time = Text(theme.Primary, 15, bold: true);
         _time.VerticalAlignment = VerticalAlignment.Center;
-        _time.Margin = new Thickness(4, 0, 0, 0);
+        _time.Margin = new Thickness(6, 0, 0, 0);
 
-        var settingsButton = RoundButton(theme, "\uE713", "Pengaturan", 30, 14);
+        var settingsButton = RoundButton(theme, "\uE713", "Pengaturan", TabSize + 6, IconSize);
         settingsButton.HorizontalAlignment = HorizontalAlignment.Right;
+        settingsButton.VerticalAlignment = VerticalAlignment.Center;
         settingsButton.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
 
-        var header = new Grid { Width = PageWidth };
+        var header = new Grid { Width = PageWidth, Height = TabSize + 6 };
         header.Children.Add(_time);
         header.Children.Add(menu);
         header.Children.Add(settingsButton);
 
-        var root = new StackPanel { Margin = new Thickness(0, 10, 0, 0), Spacing = 12, HorizontalAlignment = HorizontalAlignment.Center };
+        var root = new StackPanel { Margin = new Thickness(0, 9, 0, 0), Spacing = 10, HorizontalAlignment = HorizontalAlignment.Center };
         root.Children.Add(header);
         root.Children.Add(pages);
         Root = root;
 
-        Select(_tabs[0], animate: false);
+        theme.Changed += (_, _) => PaintTabs();
+        // LANTING_SMOKE_TAB=Sholat (dsb.) membuka menu itu dulu, untuk screenshot tes.
+        var start = Environment.GetEnvironmentVariable("LANTING_SMOKE_TAB");
+        Select(_tabs.FirstOrDefault(t => t.Name.Equals(start, StringComparison.OrdinalIgnoreCase)) ?? _tabs[0], animate: false);
         ShowTime(DateTime.Now);
         clock.Tick += (_, now) => ShowTime(now);
     }
@@ -114,7 +110,7 @@ internal sealed class DashboardView
 
     public FrameworkElement Root { get; }
 
-    /// <summary>Dashboard baru saja dibuka: baca ulang halaman yang tidak punya event (cuaca, kontrol).</summary>
+    /// <summary>Dashboard baru saja dibuka: baca ulang halaman yang tidak punya event (cuaca, sholat, perangkat).</summary>
     public void OnOpened()
     {
         ShowTime(DateTime.Now);
@@ -152,59 +148,94 @@ internal sealed class DashboardView
 
         var previous = _selected;
         _selected = tab;
-        foreach (var t in _tabs)
-        {
-            t.Button!.Foreground = ReferenceEquals(t, tab) ? _theme.Primary : _theme.Secondary;
-        }
+        PaintTabs();
 
         if (previous is not null)
         {
             previous.Page.Visibility = Visibility.Collapsed;
+            Resize(previous, selected: false, animate);
         }
 
+        Resize(tab, selected: true, animate);
         tab.Page.Visibility = Visibility.Visible;
         tab.Refresh?.Invoke();
         UpdateMediaOnScreen();
-
-        // Sorotan menu meluncur ke menu yang dipilih.
-        var visual = ElementCompositionPreview.GetElementVisual(_highlight);
-        var target = new Vector3((float)(_tabs.IndexOf(tab) * TabWidth), 0f, 0f);
-        if (!animate)
+        if (animate)
         {
-            visual.Properties.InsertVector3("Translation", target);
-            return;
+            Motion.Pop(tab.Page);
         }
-
-        var compositor = visual.Compositor;
-        var slide = compositor.CreateVector3KeyFrameAnimation();
-        slide.InsertKeyFrame(1f, target, compositor.CreateCubicBezierEasingFunction(new(0.2f, 0.9f), new(0.3f, 1f)));
-        slide.Duration = TimeSpan.FromMilliseconds(260);
-        visual.StartAnimation("Translation", slide);
-        Motion.Pop(tab.Page);
     }
 
-    private Button TabButton(Tab tab)
+    private void BuildButton(Tab tab)
     {
-        var label = Text(_theme.Secondary, 12, bold: true);
-        label.Text = tab.Label;
-        // Warna teks ikut tombol (redup, atau terang saat dipilih/disorot).
-        label.ClearValue(TextBlock.ForegroundProperty);
+        var icon = Icon(tab.Glyph, IconSize);
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        tab.Label = Text(_theme.Secondary, 12, bold: true);
+        tab.Label.Text = tab.Name;
+        tab.Label.VerticalAlignment = VerticalAlignment.Center;
+        // Warna teks ikut tombol (redup, atau terang saat dipilih).
+        tab.Label.ClearValue(TextBlock.ForegroundProperty);
+        tab.Label.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+        tab.WideWidth = Math.Ceiling(TabSize + LabelGap + tab.Label.DesiredSize.Width + 4);
+
+        // Isi rata kiri dengan ikon tepat di tengah lingkaran; saat menyempit, nama terpotong oleh sudut tombol.
         var content = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 6,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = LabelGap,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness((TabSize - IconSize) / 2, 0, 0, 0),
         };
-        content.Children.Add(Icon(tab.Glyph, 13));
-        content.Children.Add(label);
+        content.Children.Add(icon);
+        content.Children.Add(tab.Label);
 
-        var button = Pressable(content, tab.Label, TabHeight / 2, _theme.Transparent, _theme.Surface, _theme.Transparent, _theme.Secondary);
-        button.Resources["ButtonForegroundPointerOver"] = _theme.Primary;
-        button.Resources["ButtonForegroundPressed"] = _theme.Primary;
-        button.Width = TabWidth;
-        button.Height = TabHeight;
-        return button;
+        var button = Pressable(content, tab.Name, TabSize / 2, tab.Paint.Rest, tab.Paint.Hover, tab.Paint.Pressed, tab.Paint.Foreground);
+        button.HorizontalContentAlignment = HorizontalAlignment.Left;
+        button.Width = TabSize;
+        button.Height = TabSize;
+        tab.Button = button;
+    }
+
+    private void PaintTabs()
+    {
+        foreach (var tab in _tabs)
+        {
+            if (ReferenceEquals(tab, _selected))
+            {
+                tab.Paint.CopyFrom(_theme.ControlHover, _theme.ControlHover, _theme.Control, _theme.Primary);
+            }
+            else
+            {
+                tab.Paint.CopyFrom(_theme.Transparent, _theme.Surface, _theme.Transparent, _theme.Secondary);
+            }
+        }
+    }
+
+    // Menu yang dipilih melebar sampai namanya terlihat; yang lain menyempit jadi lingkaran.
+    private static void Resize(Tab tab, bool selected, bool animate)
+    {
+        var width = selected ? tab.WideWidth : TabSize;
+        if (!animate)
+        {
+            tab.Button!.Width = width;
+            tab.Label!.Opacity = selected ? 1 : 0;
+            return;
+        }
+
+        var grow = new DoubleAnimation
+        {
+            To = width,
+            Duration = TabDuration,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            EnableDependentAnimation = true,
+        };
+        Storyboard.SetTarget(grow, tab.Button);
+        Storyboard.SetTargetProperty(grow, nameof(FrameworkElement.Width));
+        var fade = new DoubleAnimation { To = selected ? 1 : 0, Duration = TabDuration };
+        Storyboard.SetTarget(fade, tab.Label);
+        Storyboard.SetTargetProperty(fade, nameof(UIElement.Opacity));
+        var story = new Storyboard { Children = { grow, fade } };
+        story.Begin();
     }
 
     private void UpdateMediaOnScreen() =>
@@ -212,9 +243,9 @@ internal sealed class DashboardView
 
     private void ShowTime(DateTime now) => _time.Text = ClockTicker.Time(now);
 
-    private sealed class Tab(string label, string glyph, FrameworkElement page, Action? refresh = null)
+    private sealed class Tab(string name, string glyph, FrameworkElement page, Action? refresh = null)
     {
-        public string Label { get; } = label;
+        public string Name { get; } = name;
 
         public string Glyph { get; } = glyph;
 
@@ -223,6 +254,12 @@ internal sealed class DashboardView
         /// <summary>Dipanggil setiap kali halaman ini mulai terlihat.</summary>
         public Action? Refresh { get; } = refresh;
 
+        public TilePaint Paint { get; } = new();
+
         public Button? Button { get; set; }
+
+        public TextBlock? Label { get; set; }
+
+        public double WideWidth { get; set; }
     }
 }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lanting.Core.Location;
 
 namespace Lanting.Core.Settings;
 
@@ -7,6 +8,12 @@ public sealed record LantingSettings
 {
     /// <summary>Warna latar island.</summary>
     public IslandBackground Background { get; init; } = IslandBackground.Translucent;
+
+    /// <summary>Bentuk island: menempel di tepi atas (notch) atau melayang (dynamic).</summary>
+    public IslandMode Mode { get; init; } = IslandMode.Notch;
+
+    /// <summary>Wajah (mata) bergantian dengan jam di pil kecil saat tidak ada lagu.</summary>
+    public bool ShowFace { get; init; } = true;
 
     /// <summary>Tampilkan pil kecil walau tidak ada lagu.</summary>
     public bool ShowWhenIdle { get; init; } = true;
@@ -22,6 +29,15 @@ public sealed record LantingSettings
 
     /// <summary>Cuaca di dashboard (lokasi kira-kira dari alamat IP lewat ipwho.is, cuaca dari Open-Meteo).</summary>
     public bool ShowWeather { get; init; } = true;
+
+    /// <summary>Kota pilihan untuk cuaca dan jadwal sholat; <c>null</c> berarti otomatis dari alamat internet.</summary>
+    public GeoLocation? City { get; init; }
+
+    /// <summary>Lokasi otomatis terakhir, supaya jadwal sholat tetap ada saat offline.</summary>
+    public GeoLocation? LastAutoLocation { get; init; }
+
+    /// <summary>Notifikasi di island saat masuk waktu sholat.</summary>
+    public bool PrayerNotifications { get; init; } = true;
 
     /// <summary>Visualizer bergerak saat lagu diputar (sekitar 8% satu core CPU).</summary>
     public bool ShowVisualizer { get; init; } = true;
@@ -43,7 +59,18 @@ public sealed record LantingSettings
     {
         LowBatteryPercent = Math.Clamp(LowBatteryPercent, 5, 50),
         Background = Enum.IsDefined(Background) ? Background : IslandBackground.Translucent,
+        Mode = Enum.IsDefined(Mode) ? Mode : IslandMode.Notch,
     };
+}
+
+/// <summary>Bentuk island.</summary>
+public enum IslandMode
+{
+    /// <summary>Menempel di tepi atas layar seperti notch laptop, dengan lengkungan di kedua sudut atas.</summary>
+    Notch,
+
+    /// <summary>Kapsul melayang sedikit di bawah tepi atas, keempat sudutnya bulat, seperti Dynamic Island iPhone.</summary>
+    Dynamic,
 }
 
 /// <summary>Pilihan warna latar island.</summary>

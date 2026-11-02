@@ -4,6 +4,7 @@ using Lanting.App.Views.Dashboard;
 using Lanting.Core.Battery;
 using Lanting.Core.Island;
 using Lanting.Core.Media;
+using Lanting.Core.Prayer;
 using Lanting.Core.Settings;
 using Microsoft.UI.Dispatching;
 
@@ -22,9 +23,13 @@ internal sealed class SettingsApplier : IDisposable
     private readonly BatteryModule _battery;
     private readonly DashboardView _dashboard;
     private readonly IslandTheme _theme;
+    private readonly PrayerModule _prayer;
+    private readonly IslandWindow _window;
+    private readonly IdleView _idle;
     private readonly DispatcherQueue _dispatcher;
     private FullscreenWatcher? _fullscreen;
     private bool _fullscreenNow;
+    private Lanting.Core.Location.GeoLocation? _city;
 
     public SettingsApplier(
         SettingsStore store,
@@ -33,8 +38,14 @@ internal sealed class SettingsApplier : IDisposable
         MediaView mediaView,
         BatteryModule battery,
         DashboardView dashboard,
-        IslandTheme theme)
+        IslandTheme theme,
+        PrayerModule prayer,
+        IslandWindow window,
+        IdleView idle)
     {
+        _window = window;
+        _idle = idle;
+        _prayer = prayer;
         _dashboard = dashboard;
         _theme = theme;
         _store = store;
@@ -84,8 +95,18 @@ internal sealed class SettingsApplier : IDisposable
         _media.LyricsEnabled = settings.ShowLyrics;
         _dashboard.SetWeatherEnabled(settings.ShowWeather);
         _theme.SetBackground(settings.Background);
+        _window.SetMode(settings.Mode);
+        _idle.SetFaceEnabled(settings.ShowFace);
         _mediaView.SetVisualizerEnabled(settings.ShowVisualizer);
         _mediaView.SetLyricsPanelVisible(settings.ShowLyricsPanel);
+        _prayer.NotificationsEnabled = settings.PrayerNotifications;
+
+        // Kota diganti di Pengaturan: jadwal sholat dihitung ulang untuk kota itu.
+        if (settings.City != _city)
+        {
+            _city = settings.City;
+            _prayer.Reschedule();
+        }
 
         var low = settings.LowBatteryPercent;
         _battery.UpdateOptions(new BatteryOptions

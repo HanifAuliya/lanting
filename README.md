@@ -16,14 +16,17 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
 | 4. Lirik | Lirik sinkron dari LRCLIB | selesai |
 | 5. Baterai | Notifikasi baterai keyboard & mouse Bluetooth | selesai |
 | 6. Rilis pertama | Settings, tray, auto-start, installer | selesai |
+| Revisi 1 (v0.2.0) | Menempel di atas, dashboard per menu, tema Windows, halaman Perangkat | selesai |
+| Revisi 2 (v0.3.0) | Jadwal sholat, menu ikon, bentuk Notch/Dynamic, wajah berekspresi | selesai |
 
 ## Fitur
 
-- **Menempel di atas layar**: saat tertutup menampilkan jam, atau lagu yang sedang diputar.
-- **Dashboard** saat kursor diam sebentar di atas pil. Di atasnya ada menu, dan setiap menu membuka satu halaman:
+- **Dua bentuk**: **Notch** yang menempel di tepi atas layar, atau **Dynamic** yang melayang sedikit di bawahnya.
+- **Wajah berekspresi** saat tidak ada lagu, bergantian dengan jam: berkedip, melirik, mengikuti kursor, senang, ngantuk, tidur, cemas saat baterai laptop lemah, merah saat hampir habis, hijau saat penuh. Warnanya mengikuti warna aksen Windows.
+- **Dashboard** saat kursor diam sebentar di atas pil. Di atasnya ada menu tombol ikon, dan setiap menu membuka satu halaman:
   - **Musik**: gambar album dengan cahaya warnanya, judul, lirik, tombol sebelumnya / putar / berikutnya.
   - **Cuaca**: cuaca saat ini, tanggal, dan seberapa jauh hari ini sudah berjalan.
-  - **Kontrol**: Wi-Fi, Bluetooth, suara, mikrofon, layar tetap nyala, mode gelap.
+  - **Sholat**: jadwal hari ini (Imsak sampai Isya) dihitung di laptop dengan kriteria Kemenag, waktu berikutnya dengan hitung mundur, dan notifikasi "Waktunya Dzuhur" di island.
   - **Perangkat**: keyboard, mouse, dan perangkat Bluetooth yang tersambung (dongle, Bluetooth, atau kabel) dengan sisa baterainya, plus pengaturan notifikasi baterai. Baterai hanya tampil kalau perangkatnya melaporkan ke Windows; biasanya perangkat Bluetooth bisa, banyak dongle 2.4 GHz tidak.
   - **Aplikasi**: File Explorer, Unduhan, Kalkulator, Notepad, Task Manager, Setelan Windows.
   - Tombol ⚙️ untuk Pengaturan.
@@ -103,7 +106,8 @@ Aturan arsitektur:
 ## Privasi
 
 - Untuk mencari lirik, judul dan artis lagu yang sedang diputar dikirim ke [LRCLIB](https://lrclib.net).
-- Untuk cuaca, lokasi kira-kira dicari dari alamat internet lewat [ipwho.is](https://ipwho.is), lalu cuacanya diambil dari [Open-Meteo](https://open-meteo.com). Paling sering 30 menit sekali, dan hanya saat dashboard dibuka.
+- Untuk cuaca dan jadwal sholat, lokasi kira-kira dicari dari alamat internet lewat [ipwho.is](https://ipwho.is) (paling sering 6 jam sekali), kecuali kota dipilih sendiri di Pengaturan. Cuaca diambil dari [Open-Meteo](https://open-meteo.com) paling sering 30 menit sekali, hanya saat halaman Cuaca dibuka. Pencarian kota di Pengaturan memakai geocoding Open-Meteo.
+- Jadwal sholat dihitung di laptop, tanpa internet.
 
 Tidak ada data lain yang dikirim. Lirik dan cuaca bisa dimatikan di Pengaturan.
 

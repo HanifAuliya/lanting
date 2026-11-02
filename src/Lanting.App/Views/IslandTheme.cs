@@ -71,6 +71,12 @@ internal sealed class IslandTheme
     /// <summary>Teks dan ikon di atas <see cref="Accent"/>.</summary>
     public SolidColorBrush OnAccent { get; } = new();
 
+    /// <summary>
+    /// Warna mata wajah: warna aksen Windows, dibuat cukup terang (tema gelap) atau cukup gelap (tema terang)
+    /// supaya tetap jelas walau aksennya sangat gelap atau sangat terang.
+    /// </summary>
+    public Color EyeColor { get; private set; }
+
     /// <summary>Teks dan ikon di atas <see cref="Primary"/> (misalnya tombol putar yang terisi).</summary>
     public SolidColorBrush Inverse { get; } = new();
 
@@ -152,8 +158,22 @@ internal sealed class IslandTheme
         // Aksen Windows bisa terang atau gelap (misalnya biru tua), jadi warna teks di atasnya dipilih dari kecerahannya.
         OnAccent.Color = Luminance(accent) > 0.6 ? Colors.Black : Colors.White;
         Inverse.Color = dark ? Colors.Black : Colors.White;
+        EyeColor = dark
+            ? Mix(_system.GetColorValue(UIColorType.AccentLight3), Colors.White, minLuminance: 0.6)
+            : Mix(_system.GetColorValue(UIColorType.AccentDark1), Colors.Black, maxLuminance: 0.45);
 
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    // Campur warna ke arah putih/hitam sedikit demi sedikit sampai kecerahannya cukup.
+    private static Color Mix(Color color, Color toward, double minLuminance = 0, double maxLuminance = 1)
+    {
+        for (var i = 0; i < 10 && (Luminance(color) < minLuminance || Luminance(color) > maxLuminance); i++)
+        {
+            color = Color.FromArgb(255, (byte)((color.R + toward.R) / 2), (byte)((color.G + toward.G) / 2), (byte)((color.B + toward.B) / 2));
+        }
+
+        return color;
     }
 
     private static double Luminance(Color color) => ((0.299 * color.R) + (0.587 * color.G) + (0.114 * color.B)) / 255;

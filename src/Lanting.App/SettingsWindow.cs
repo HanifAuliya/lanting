@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Lanting.App.Shell;
+using Lanting.Core.Location;
 using Lanting.Core.Settings;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -24,14 +25,20 @@ internal sealed partial class SettingsWindow : Window
     private static readonly Color CardStrokeDark = Color.FromArgb(0x19, 0x00, 0x00, 0x00);
     private static readonly Color CardStrokeLight = Color.FromArgb(0x0F, 0x00, 0x00, 0x00);
 
+    // Urutannya sama dengan IslandMode.
+    private static readonly string[] ModeNames = ["Notch (menempel di atas)", "Dynamic (melayang)"];
+
     // Urutannya sama dengan IslandBackground.
     private static readonly string[] BackgroundNames = ["Transparan", "Solid", "Hitam pekat"];
 
     private readonly SettingsStore _store;
+    private readonly LocationService _location;
+    private CancellationTokenSource? _search;
 
-    public SettingsWindow(SettingsStore store)
+    public SettingsWindow(SettingsStore store, LocationService location)
     {
         _store = store;
+        _location = location;
         Title = "Pengaturan Lanting";
         SystemBackdrop = new MicaBackdrop();
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "lanting.ico"));
@@ -46,6 +53,23 @@ internal sealed partial class SettingsWindow : Window
         page.Children.Add(new TextBlock { Text = "Pengaturan", FontSize = 28, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) });
 
         page.Children.Add(Section("Island"));
+
+        var mode = new ComboBox { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
+        foreach (var name in ModeNames)
+        {
+            mode.Items.Add(name);
+        }
+
+        mode.SelectedIndex = (int)settings.Mode;
+        mode.SelectionChanged += (_, _) =>
+        {
+            if (mode.SelectedIndex >= 0)
+            {
+                var chosen = (IslandMode)mode.SelectedIndex;
+                _store.Update(s => s with { Mode = chosen });
+            }
+        };
+        page.Children.Add(Row("Bentuk island", "Notch menyatu dengan tepi atas layar. Dynamic melayang sedikit di bawahnya, seperti di iPhone.", mode));
 
         var background = new ComboBox { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
         foreach (var name in BackgroundNames)
@@ -64,6 +88,11 @@ internal sealed partial class SettingsWindow : Window
         };
         page.Children.Add(Row("Latar island", "Terang atau gelap mengikuti tema Windows (Setelan > Personalisasi > Warna).", background));
 
+        page.Children.Add(Toggle(
+            "Wajah",
+            "Saat tidak ada lagu, pil kecil bergantian menampilkan mata dan jam. Matanya berekspresi: berkedip, mengikuti kursor, ngantuk, cemas saat baterai lemah.",
+            settings.ShowFace,
+            on => _store.Update(s => s with { ShowFace = on })));
         page.Children.Add(Toggle(
             "Tampilkan pil saat tidak ada lagu",
             "Pil kecil berisi jam tetap ada di atas layar walau tidak ada yang diputar.",
@@ -90,9 +119,17 @@ internal sealed partial class SettingsWindow : Window
         page.Children.Add(Section("Dashboard"));
         page.Children.Add(Toggle(
             "Tampilkan cuaca",
-            "Lokasi kira-kira dari alamat internet (ipwho.is), cuaca dari Open-Meteo. Diperbarui paling sering 30 menit sekali.",
+            "Cuaca dari Open-Meteo untuk kota di bawah. Diperbarui paling sering 30 menit sekali.",
             settings.ShowWeather,
             on => _store.Update(s => s with { ShowWeather = on })));
+
+        page.Children.Add(Section("Sholat dan lokasi"));
+        page.Children.Add(CityRow(settings));
+        page.Children.Add(Toggle(
+            "Notifikasi waktu sholat",
+            "Island menampilkan \"Waktunya Dzuhur\" dan seterusnya saat masuk waktu sholat. Jadwal dihitung di laptop dengan kriteria Kemenag.",
+            settings.PrayerNotifications,
+            on => _store.Update(s => s with { PrayerNotifications = on })));
 
         page.Children.Add(Section("Baterai perangkat"));
         page.Children.Add(Toggle(
@@ -146,6 +183,72 @@ internal sealed partial class SettingsWindow : Window
         return new ScrollViewer { Content = page };
     }
 
+    /// <summary>
+    /// Kota untuk cuaca dan jadwal sholat: ketik nama kota lalu pilih dari daftar, atau kembali ke otomatis.
+    /// Pencarian menunggu sebentar setelah berhenti mengetik supaya tidak mengirim permintaan tiap huruf.
+    /// </summary>
+    private Border CityRow(LantingSettings settings)
+    {
+        var description = new TextBlock { FontSize = 12, Opacity = 0.7, TextWrapping = TextWrapping.Wrap };
+        void ShowChoice(GeoLocation? city) => description.Text = city is null
+            ? $"Otomatis dari alamat internet{(_location.Current is { } auto ? $" (sekarang: {auto.Place})" : string.Empty)}."
+            : $"Dipilih: {city.Place}.";
+        ShowChoice(settings.City);
+
+        var results = new List<GeoLocation>();
+        var box = new AutoSuggestBox { PlaceholderText = "Cari kota...", Width = 200, QueryIcon = new SymbolIcon(Symbol.Find) };
+        box.TextChanged += async (sender, args) =>
+        {
+            if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+            {
+                return;
+            }
+
+            _search?.Cancel();
+            var search = _search = new CancellationTokenSource();
+            try
+            {
+                await Task.Delay(400, search.Token);
+                var found = await _location.SearchAsync(sender.Text, search.Token);
+                results.Clear();
+                results.AddRange(found);
+                sender.ItemsSource = found.Count > 0 ? found.Select(c => c.Place).ToList() : ["Kota tidak ditemukan"];
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                StartupLog.Write($"Cari kota gagal: {ex.Message}");
+                sender.ItemsSource = new[] { "Gagal mencari (cek internet)" };
+            }
+        };
+        box.SuggestionChosen += (sender, args) =>
+        {
+            var city = results.FirstOrDefault(c => c.Place == args.SelectedItem as string);
+            if (city is null)
+            {
+                return;
+            }
+
+            _store.Update(s => s with { City = city });
+            ShowChoice(city);
+            sender.Text = string.Empty;
+        };
+
+        var automatic = new Button { Content = "Otomatis" };
+        automatic.Click += (_, _) =>
+        {
+            _store.Update(s => s with { City = null });
+            ShowChoice(null);
+        };
+
+        var controls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        controls.Children.Add(box);
+        controls.Children.Add(automatic);
+        return Row("Kota", description, controls);
+    }
+
     private static TextBlock Section(string title) => new()
     {
         Text = title,
@@ -165,11 +268,14 @@ internal sealed partial class SettingsWindow : Window
     private static bool Dark => Application.Current.RequestedTheme == ApplicationTheme.Dark;
 
     // Satu baris pengaturan: judul dan penjelasan di kiri, kontrol di kanan, dalam kartu.
-    private static Border Row(string title, string description, FrameworkElement control)
+    private static Border Row(string title, string description, FrameworkElement control) =>
+        Row(title, new TextBlock { Text = description, FontSize = 12, Opacity = 0.7, TextWrapping = TextWrapping.Wrap }, control);
+
+    private static Border Row(string title, TextBlock description, FrameworkElement control)
     {
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
         text.Children.Add(new TextBlock { Text = title, TextWrapping = TextWrapping.Wrap });
-        text.Children.Add(new TextBlock { Text = description, FontSize = 12, Opacity = 0.7, TextWrapping = TextWrapping.Wrap });
+        text.Children.Add(description);
 
         var grid = new Grid { ColumnSpacing = 16 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
