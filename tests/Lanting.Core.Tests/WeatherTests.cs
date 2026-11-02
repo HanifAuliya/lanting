@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using Lanting.Core.Clock;
+using Lanting.Core.Location;
 using Lanting.Core.Weather;
 using Microsoft.Extensions.Time.Testing;
 
@@ -98,9 +99,13 @@ public class WeatherTests
         Assert.Equal(TimeSpan.FromHours(18), progress.Remaining);
     }
 
-    private WeatherService Service() => new(new HttpClient(_handler), _time);
+    private WeatherService Service()
+    {
+        var http = new HttpClient(_handler);
+        return new(http, _time, new LocationService(http, _time));
+    }
 
-    private sealed class FakeHandler : HttpMessageHandler
+    internal sealed class FakeHandler : HttpMessageHandler
     {
         private readonly Dictionary<string, string?> _replies = [];
 

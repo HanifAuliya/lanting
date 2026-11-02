@@ -67,6 +67,24 @@ jobs:
           Stop-Process -Id $p.Id -Force
           Write-Host "Lanting.exe masih berjalan setelah 12 detik."
 
+      - name: Smoke test keluar (seperti memilih "Keluar dari Lanting")
+        shell: pwsh
+        run: |
+          # Dulu Lanting crash saat keluar (0xC000027B) tanpa menulis FATAL di log, jadi yang dicek exit code-nya.
+          Start-Sleep -Seconds 2
+          $env:LANTING_NO_DIALOG = '1'
+          $env:LANTING_SMOKE_EXPANDED = '1'
+          $env:LANTING_SMOKE_SETTINGS = '1'
+          $env:LANTING_SMOKE_EXIT = '1'
+          $p = Start-Process -FilePath out/Lanting/Lanting.exe -PassThru
+          if (-not $p.WaitForExit(30000)) {
+            Stop-Process -Id $p.Id -Force
+            Write-Host "Lanting.exe tidak keluar dalam 30 detik."
+            exit 1
+          }
+          Write-Host "Exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { exit 1 }
+
       - name: Upload hasil smoke test
         if: always()
         uses: actions/upload-artifact@v4

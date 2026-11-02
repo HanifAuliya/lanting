@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lanting.Core.Location;
 
 namespace Lanting.Core.Settings;
 
@@ -22,6 +23,15 @@ public sealed record LantingSettings
 
     /// <summary>Cuaca di dashboard (lokasi kira-kira dari alamat IP lewat ipwho.is, cuaca dari Open-Meteo).</summary>
     public bool ShowWeather { get; init; } = true;
+
+    /// <summary>Kota pilihan untuk cuaca dan jadwal sholat; <c>null</c> berarti otomatis dari alamat internet.</summary>
+    public GeoLocation? City { get; init; }
+
+    /// <summary>Lokasi otomatis terakhir, supaya jadwal sholat tetap ada saat offline.</summary>
+    public GeoLocation? LastAutoLocation { get; init; }
+
+    /// <summary>Notifikasi di island saat masuk waktu sholat.</summary>
+    public bool PrayerNotifications { get; init; } = true;
 
     /// <summary>Visualizer bergerak saat lagu diputar (sekitar 8% satu core CPU).</summary>
     public bool ShowVisualizer { get; init; } = true;

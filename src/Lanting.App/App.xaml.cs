@@ -1,19 +1,19 @@
-using Lanting.App.Battery;
+﻿using Lanting.App.Battery;
 using Lanting.App.Media;
-using Lanting.App.QuickToggles;
 using Lanting.App.Shell;
 using Lanting.App.Views;
 using Lanting.App.Views.Dashboard;
 using Lanting.Core.Battery;
 using Lanting.Core.Island;
+using Lanting.Core.Location;
 using Lanting.Core.Lyrics;
 using Lanting.Core.Media;
 using Lanting.Core.Modules;
+using Lanting.Core.Prayer;
 using Lanting.Core.Settings;
 using Lanting.Core.Weather;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
-using Windows.Devices.Radios;
 using WinRT.Interop;
 
 namespace Lanting.App;
@@ -90,6 +90,25 @@ public partial class App : Application
                 OpenSettings();
                 StartupLog.Write("Pengaturan dibuka (smoke test).");
             }
+
+            // Tes: keluar sendiri setelah sebentar, seperti memilih "Keluar dari Lanting", supaya error saat keluar ketahuan.
+            if (Environment.GetEnvironmentVariable("LANTING_SMOKE_EXIT") == "1")
+            {
+                var timer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
+                timer.Interval = TimeSpan.FromSeconds(3);
+                timer.IsRepeating = false;
+                timer.Tick += async (_, _) => await ShutdownAsync();
+                timer.Start();
+            }
+
+            // Tes: tampilkan notifikasi waktu sholat tanpa menunggu waktunya.
+            if (Environment.GetEnvironmentVariable("LANTING_SMOKE_PRAYER") == "1"
+                && _services.GetRequiredService<PrayerModule>().Today() is { } today)
+            {
+                _services.GetRequiredService<IIslandHost>().Show(new IslandContent(
+                    PrayerModule.ModuleId, "time", IslandPriority.Alert, new PrayerNotice(today.Next, today.Location.Place), TimeSpan.FromSeconds(8)));
+                StartupLog.Write("Notifikasi sholat ditampilkan (smoke test).");
+            }
         }
         catch (Exception ex)
         {
@@ -151,20 +170,21 @@ public partial class App : Application
         services.AddSingleton<IIslandView, BatteryView>();
         services.AddSingleton<InputDeviceWatcher>();
 
+        // Lokasi (kota pilihan atau dari alamat internet), dipakai cuaca dan jadwal sholat.
+        services.AddSingleton(new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(10),
+            DefaultRequestHeaders = { { "User-Agent", $"Lanting/{typeof(App).Assembly.GetName().Version?.ToString(3)} (https://github.com/HanifAuliya/lanting)" } },
+        });
+        services.AddSingleton(sp => new LocationService(
+            sp.GetRequiredService<HttpClient>(), sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<SettingsStore>()));
+
+        services.AddSingleton<PrayerModule>();
+        services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<PrayerModule>());
+        services.AddSingleton<IIslandView, PrayerView>();
+
         // Dashboard (isi island saat dibuka).
-        services.AddSingleton(sp => new WeatherService(
-            new HttpClient
-            {
-                Timeout = TimeSpan.FromSeconds(10),
-                DefaultRequestHeaders = { { "User-Agent", $"Lanting/{typeof(App).Assembly.GetName().Version?.ToString(3)} (https://github.com/HanifAuliya/lanting)" } },
-            },
-            sp.GetRequiredService<TimeProvider>()));
-        services.AddSingleton<IQuickToggle>(new RadioToggle(RadioKind.WiFi, "Wi-Fi", "\uE701"));
-        services.AddSingleton<IQuickToggle>(new RadioToggle(RadioKind.Bluetooth, "Bluetooth", "\uE702"));
-        services.AddSingleton<IQuickToggle>(AudioMuteToggle.Speaker());
-        services.AddSingleton<IQuickToggle>(AudioMuteToggle.Microphone());
-        services.AddSingleton<IQuickToggle, KeepAwakeToggle>();
-        services.AddSingleton<IQuickToggle, DarkModeToggle>();
+        services.AddSingleton<WeatherService>();
         services.AddSingleton<ClockTicker>();
         services.AddSingleton<IdleView>();
         services.AddSingleton<DashboardView>();
@@ -186,7 +206,7 @@ public partial class App : Application
 
         if (_settingsWindow is null)
         {
-            _settingsWindow = new SettingsWindow(_services.GetRequiredService<SettingsStore>());
+            _settingsWindow = new SettingsWindow(_services.GetRequiredService<SettingsStore>(), _services.GetRequiredService<LocationService>());
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         }
 
@@ -201,6 +221,9 @@ public partial class App : Application
         _fullscreen = null;
         if (_services is not null)
         {
+            // Jendela island ditutup dulu dengan rapi. Tanpa ini, Exit() membongkar jendela yang timer dan ikon tray-nya
+            // sudah dilepas, lalu crash di CoreMessagingXP (0xC000027B, "invalid window handle").
+            _services.GetRequiredService<IslandWindow>().Close();
             await _services.GetRequiredService<ModuleHost>().DisposeAsync();
             await _services.DisposeAsync();
             _services = null;
