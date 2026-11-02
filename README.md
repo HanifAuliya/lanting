@@ -19,6 +19,7 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
 | Revisi 1 (v0.2.0) | Menempel di atas, dashboard per menu, tema Windows, halaman Perangkat | selesai |
 | Revisi 2 (v0.3.0) | Jadwal sholat, menu ikon, bentuk Notch/Dynamic, wajah berekspresi | selesai |
 | Revisi 3 (v0.4.0) | Wajah lebih hidup, tampilan Cuaca/Sholat/Perangkat/Aplikasi dirapikan | selesai |
+| Pesan (v0.5.0) | Notifikasi WhatsApp (aplikasi & web) dan Discord di island | selesai |
 
 ## Fitur
 
@@ -32,6 +33,7 @@ Target: RAM idle di bawah 60 MB, CPU 0% saat diam, animasi spring 60 fps yang di
   - **Aplikasi**: File Explorer, Unduhan, Kalkulator, Notepad, Task Manager, Setelan, dengan ikon asli aplikasinya.
   - Tombol ⚙️ untuk Pengaturan.
 - **Mengikuti tema Windows**: terang atau gelap, agak transparan, dengan warna aksen Windows. Bisa diganti ke solid atau hitam pekat di Pengaturan.
+- **Pesan masuk** WhatsApp (aplikasi dan WhatsApp Web di browser) dan Discord tampil di island: nama pengirim dan isi pesan. Klik untuk membuka aplikasinya. Masing-masing bisa dinyalakan/dimatikan di Pengaturan.
 - **Lagu yang sedang diputar** (Spotify, YouTube Music, browser, Media Player): gambar album, judul, visualizer.
 - **Lirik sinkron** dari LRCLIB, langsung di pil.
 - **Baterai Bluetooth**: keyboard/mouse tersambung, terputus, dan baterai lemah.
@@ -109,6 +111,7 @@ Aturan arsitektur:
 - Untuk mencari lirik, judul dan artis lagu yang sedang diputar dikirim ke [LRCLIB](https://lrclib.net).
 - Untuk cuaca dan jadwal sholat, lokasi kira-kira dicari dari alamat internet lewat [ipwho.is](https://ipwho.is) (paling sering 6 jam sekali), kecuali kota dipilih sendiri di Pengaturan. Cuaca diambil dari [Open-Meteo](https://open-meteo.com) paling sering 30 menit sekali, hanya saat halaman Cuaca dibuka. Pencarian kota di Pengaturan memakai geocoding Open-Meteo.
 - Jadwal sholat dihitung di laptop, tanpa internet.
+- Notifikasi pesan dibaca dari Windows (izin "akses notifikasi") dan hanya ditampilkan di layar; tidak disimpan dan tidak dikirim ke mana pun.
 
 Tidak ada data lain yang dikirim. Lirik dan cuaca bisa dimatikan di Pengaturan.
 

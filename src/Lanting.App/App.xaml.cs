@@ -1,5 +1,6 @@
 ﻿using Lanting.App.Battery;
 using Lanting.App.Face;
+using Lanting.App.Messages;
 using Lanting.App.Media;
 using Lanting.App.Shell;
 using Lanting.App.Views;
@@ -10,6 +11,7 @@ using Lanting.Core.Island;
 using Lanting.Core.Location;
 using Lanting.Core.Lyrics;
 using Lanting.Core.Media;
+using Lanting.Core.Messages;
 using Lanting.Core.Modules;
 using Lanting.Core.Prayer;
 using Lanting.Core.Settings;
@@ -105,6 +107,15 @@ public partial class App : Application
                 timer.Start();
             }
 
+            // Tes: tampilkan pesan WhatsApp contoh.
+            if (Environment.GetEnvironmentVariable("LANTING_SMOKE_MESSAGE") == "1")
+            {
+                _services.GetRequiredService<IIslandHost>().Show(new IslandContent(
+                    MessageModule.ModuleId, "smoke", IslandPriority.Alert,
+                    new MessageNotice(ChatApp.WhatsApp, "Budi", "Nanti jadi ke kampus jam berapa?", "https://web.whatsapp.com"), TimeSpan.FromSeconds(8)));
+                StartupLog.Write("Pesan contoh ditampilkan (smoke test).");
+            }
+
             // Tes: tampilkan notifikasi waktu sholat tanpa menunggu waktunya.
             if (Environment.GetEnvironmentVariable("LANTING_SMOKE_PRAYER") == "1"
                 && _services.GetRequiredService<PrayerModule>().Today() is { } today)
@@ -186,6 +197,11 @@ public partial class App : Application
         });
         services.AddSingleton(sp => new LocationService(
             sp.GetRequiredService<HttpClient>(), sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<SettingsStore>()));
+
+        services.AddSingleton<IToastSource, ToastSource>();
+        services.AddSingleton<MessageModule>();
+        services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<MessageModule>());
+        services.AddSingleton<IIslandView, MessageView>();
 
         services.AddSingleton<PrayerModule>();
         services.AddSingleton<IIslandModule>(sp => sp.GetRequiredService<PrayerModule>());

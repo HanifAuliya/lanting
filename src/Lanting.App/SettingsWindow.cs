@@ -131,6 +131,18 @@ internal sealed partial class SettingsWindow : Window
             settings.PrayerNotifications,
             on => _store.Update(s => s with { PrayerNotifications = on })));
 
+        page.Children.Add(Section("Notifikasi pesan"));
+        page.Children.Add(Toggle(
+            "WhatsApp",
+            "Pesan dari aplikasi WhatsApp dan WhatsApp Web (Chrome, Edge, dll.) tampil di island. Klik untuk membukanya.",
+            settings.WhatsAppNotifications,
+            on => _store.Update(s => s with { WhatsAppNotifications = on })));
+        page.Children.Add(Toggle(
+            "Discord",
+            "Pesan dari aplikasi Discord dan Discord di browser tampil di island.",
+            settings.DiscordNotifications,
+            on => _store.Update(s => s with { DiscordNotifications = on })));
+
         page.Children.Add(Section("Baterai perangkat"));
         page.Children.Add(Toggle(
             "Baterai lemah dan hampir habis",
